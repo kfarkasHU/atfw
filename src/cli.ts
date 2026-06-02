@@ -40,4 +40,4 @@ if (!inputFilePath) throw new Error('Input file path is required');
 if (!outputFilePath) throw new Error('Output file path is required');
 
 const writtenFile = createTests(inputFilePath, outputFilePath, { debugOutput, runner });
-debugOutput && console.log(writtenFile);
+if (debugOutput) console.log(writtenFile);

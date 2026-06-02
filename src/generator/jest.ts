@@ -137,10 +137,6 @@ function buildMockImportStatements(
   return Array.from(modules.entries()).map(([moduleSpecifier, names]) => `import { ${Array.from(names).join(', ')} } from ${JSON.stringify(moduleSpecifier)};`);
 }
 
-function buildBeforeEachBlock(mocks: Record<string, unknown> | undefined): string {
-  return buildBeforeEachBlockWithCalls(mocks, []);
-}
-
 function buildBeforeEachBlockWithCalls(
   mocks: Record<string, unknown> | undefined,
   callExpectations: CallExpectation[] | undefined,

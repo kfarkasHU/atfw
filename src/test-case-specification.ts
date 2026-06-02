@@ -822,7 +822,7 @@ function evaluateExpr(
   }
 
   if (expr.type === 'IRUnary' && expr.op === '!') {
-    return !Boolean(evaluateExpr(expr.expr, inputs, locals, mocks));
+    return !evaluateExpr(expr.expr, inputs, locals, mocks);
   }
 
   if (expr.type === 'IRBinary') {
