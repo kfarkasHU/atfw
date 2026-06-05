@@ -16,7 +16,8 @@
     "prepare": "npm run build",
     "test:jest": "jest --config jest.config.ts --coverage",
     "test:vitest": "vitest --config vitest.config.ts run --coverage",
-    "gha:build": "tsc -p tsconfig.json"
+    "gha:build": "tsc -p tsconfig.json",
+    "gha:lint": "eslint ."
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
