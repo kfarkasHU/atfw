@@ -1,1 +1,1 @@
-export type Runner = 'jest' | 'vitest';
+export type Runner = `jest` | `vitest`;

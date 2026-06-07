@@ -1,3 +1,3 @@
 export function isEmptyString(valueLike: string) {
-  return valueLike === '';
+  return valueLike === ``;
 }

@@ -1,7 +1,7 @@
 export function ifTruthy(valueLike: unknown) {
   if (valueLike) {
-    return 'truthy branch';
+    return `truthy branch`;
   }
 
-  return 'falsy branch';
+  return `falsy branch`;
 }

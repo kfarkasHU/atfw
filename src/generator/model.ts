@@ -9,7 +9,7 @@ type TestCase = {
     args: unknown[][];
   }>;
   expected: {
-    type: 'return' | 'throw';
+    type: `return` | `throw`;
     value?: unknown;
     message?: string;
   };
@@ -113,7 +113,7 @@ export function buildTestGenerationInput(args: BuildTestGenerationInputArgs): Te
     return accumulator;
   }, {});
 
-  const functionName = functionNames[0] ?? specs[0]?.function ?? 'sut';
+  const functionName = functionNames[0] ?? specs[0]?.function ?? `sut`;
 
   return {
     sourceFilePath: args.sourceFilePath,

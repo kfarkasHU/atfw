@@ -2,111 +2,111 @@ function toIrExpression(node: any): any {
   if (!node) return null;
 
   switch (node.type) {
-    case 'Identifier':
-      return { type: 'IRVar', name: node.name };
-    case 'Const':
-      return { type: 'IRConst', value: node.value };
-    case 'BinaryExpression':
+    case `Identifier`:
+      return { type: `IRVar`, name: node.name };
+    case `Const`:
+      return { type: `IRConst`, value: node.value };
+    case `BinaryExpression`:
       return {
-        type: 'IRBinary',
+        type: `IRBinary`,
         op: node.operator,
         left: toIrExpression(node.left),
         right: toIrExpression(node.right),
       };
-    case 'TypeOfExpression':
+    case `TypeOfExpression`:
       return {
-        type: 'IRTypeOf',
+        type: `IRTypeOf`,
         expr: toIrExpression(node.expression),
       };
-    case 'ArrayLiteralExpression':
+    case `ArrayLiteralExpression`:
       return {
-        type: 'IRArray',
+        type: `IRArray`,
         elements: (node.elements ?? []).map((element: any) => toIrExpression(element)),
       };
-    case 'ConditionalExpression':
+    case `ConditionalExpression`:
       return {
-        type: 'IRConditional',
+        type: `IRConditional`,
         condition: toIrExpression(node.condition),
         whenTrue: toIrExpression(node.whenTrue),
         whenFalse: toIrExpression(node.whenFalse),
       };
-    case 'PropertyAccessExpression':
+    case `PropertyAccessExpression`:
       return {
-        type: 'IRProperty',
+        type: `IRProperty`,
         object: toIrExpression(node.expression),
         property: node.name,
       };
-    case 'CallExpression':
+    case `CallExpression`:
       return {
-        type: 'IRCall',
+        type: `IRCall`,
         callee: toIrExpression(node.expression),
         args: (node.arguments ?? []).map((arg: any) => toIrExpression(arg)),
       };
-    case 'PrefixUnaryExpression':
+    case `PrefixUnaryExpression`:
       return {
-        type: 'IRUnary',
+        type: `IRUnary`,
         op: node.operator,
         expr: toIrExpression(node.operand),
       };
-    case 'NewExpression':
+    case `NewExpression`:
       return {
-        type: 'IRNew',
+        type: `IRNew`,
         class: node.expression,
         args: (node.arguments ?? []).map((arg: any) => toIrExpression(arg)),
       };
-    case 'TemplateExpression':
+    case `TemplateExpression`:
       return {
-        type: 'IRTemplate',
+        type: `IRTemplate`,
         parts: node.parts.map((part: any) => toIrExpression(part)),
       };
     default:
-      return { type: 'IRUnknown', value: node };
+      return { type: `IRUnknown`, value: node };
   }
 }
 
 function toIrStatement(node: any): any {
   if (!node) return null;
 
-  if (node.type === 'IfStatement') {
+  if (node.type === `IfStatement`) {
     return {
-      type: 'IRIf',
+      type: `IRIf`,
       condition: toIrExpression(node.expression),
       then: (node.thenStatement ?? []).map((statement: any) => toIrStatement(statement)),
     };
   }
 
-  if (node.type === 'Terminal') {
-    if (node.kind === 'return') {
+  if (node.type === `Terminal`) {
+    if (node.kind === `return`) {
       return {
-        type: 'IRReturn',
+        type: `IRReturn`,
         value: toIrExpression(node.value),
       };
     }
 
-    if (node.kind === 'throw') {
+    if (node.kind === `throw`) {
       return {
-        type: 'IRThrow',
+        type: `IRThrow`,
         error: toIrExpression(node.error),
       };
     }
   }
 
-  if (node.type === 'VariableStatement') {
+  if (node.type === `VariableStatement`) {
     return (node.declarations ?? []).map((declaration: any) => ({
-      type: 'IRConstDecl',
+      type: `IRConstDecl`,
       name: declaration.name,
       value: toIrExpression(declaration.initializer),
     }));
   }
 
-  if (node.type === 'Expression') {
+  if (node.type === `Expression`) {
     return {
-      type: 'IRExpression',
+      type: `IRExpression`,
       expr: toIrExpression(node.expression),
     };
   }
 
-  return { type: 'IRUnknown', value: node };
+  return { type: `IRUnknown`, value: node };
 }
 
 export function createIr(ast: any): any {
@@ -117,7 +117,7 @@ export function createIr(ast: any): any {
   return astFunctions
     .filter(Boolean)
     .map((item) => ({
-      type: 'IRFunction',
+      type: `IRFunction`,
       name: item.name,
       params: item.params?.map((param: any) => param.name) ?? [],
       imports: item.imports ?? [],

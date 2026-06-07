@@ -1,7 +1,7 @@
 export function hasObject(value: boolean) {
   if (value) {
-    return 'present';
+    return `present`;
   }
 
-  return 'missing';
+  return `missing`;
 }

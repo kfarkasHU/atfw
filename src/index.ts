@@ -18,7 +18,7 @@ type WriteOptions = {
 export function createTests(
   inputFilePath: string,
   outputFilePath: string,
-  options: WriteOptions = { debugOutput: false, runner: 'jest' }
+  options: WriteOptions = { debugOutput: false, runner: `jest` }
 ): string {
   const absoluteInputPath = path.isAbsolute(inputFilePath)
     ? inputFilePath
@@ -49,21 +49,21 @@ export function createTests(
   });
 
   const testFileContent =
-    options.runner === 'vitest' ? createVitestTests(generationInput) :
+    options.runner === `vitest` ? createVitestTests(generationInput) :
     createJestTests(generationInput);
 
   const outputDir = path.dirname(absoluteOutputPath);
   mkdirSync(outputDir, { recursive: true });
-  writeFileSync(absoluteOutputPath, testFileContent, 'utf-8');
+  writeFileSync(absoluteOutputPath, testFileContent, `utf-8`);
 
   if (options.debugOutput) {
     const outputFileBase = path.basename(absoluteOutputPath, path.extname(absoluteOutputPath));
 
-    writeFileSync(path.join(outputDir, `${outputFileBase}.ast.json`), JSON.stringify(ast, null, 2), 'utf-8');
-    writeFileSync(path.join(outputDir, `${outputFileBase}.ir.json`), JSON.stringify(ir, null, 2), 'utf-8');
-    writeFileSync(path.join(outputDir, `${outputFileBase}.cfg.json`), JSON.stringify(cfg, null, 2), 'utf-8');
-    writeFileSync(path.join(outputDir, `${outputFileBase}.path.json`), JSON.stringify(paths, null, 2), 'utf-8');
-    writeFileSync(path.join(outputDir, `${outputFileBase}.test-case-specification.json`), JSON.stringify(testCaseSpecification, null, 2), 'utf-8');
+    writeFileSync(path.join(outputDir, `${outputFileBase}.ast.json`), JSON.stringify(ast, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileBase}.ir.json`), JSON.stringify(ir, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileBase}.cfg.json`), JSON.stringify(cfg, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileBase}.path.json`), JSON.stringify(paths, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileBase}.test-case-specification.json`), JSON.stringify(testCaseSpecification, null, 2), `utf-8`);
   }
 
   return absoluteOutputPath;

@@ -4,12 +4,12 @@ export function isAboveTen(x: number) {
 
 export function compareToTen(x: number) {
   if (x < 10) {
-    return 'lt';
+    return `lt`;
   }
 
   if (x === 10) {
-    return 'eq';
+    return `eq`;
   }
 
-  return 'gt';
+  return `gt`;
 }

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { TestCaseSpecification, TestGenerationInput } from './model';
 
-type CallExpectation = NonNullable<TestCaseSpecification['cases'][number]['callExpectations']>[number];
+type CallExpectation = NonNullable<TestCaseSpecification[`cases`][number][`callExpectations`]>[number];
 
 function stripExtension(filePath: string): string {
   const extension = path.extname(filePath);
@@ -11,9 +11,9 @@ function stripExtension(filePath: string): string {
 function toImportSpecifier(outputFilePath: string, sourceFilePath: string): string {
   const fromDir = path.dirname(outputFilePath);
   const relativePath = path.relative(fromDir, sourceFilePath);
-  const normalized = stripExtension(relativePath).split(path.sep).join('/');
+  const normalized = stripExtension(relativePath).split(path.sep).join(`/`);
 
-  if (normalized.startsWith('.')) return normalized;
+  if (normalized.startsWith(`.`)) return normalized;
   return `./${normalized}`;
 }
 
@@ -21,43 +21,43 @@ function resolveImportSpecifier(moduleSpecifier: string, sourceFilePath: string,
   const sourceDir = path.dirname(sourceFilePath);
   const fromDir = path.dirname(outputFilePath);
   const rebasedPath = path.join(path.relative(fromDir, sourceDir), moduleSpecifier);
-  const normalized = stripExtension(rebasedPath).split(path.sep).join('/');
+  const normalized = stripExtension(rebasedPath).split(path.sep).join(`/`);
 
-  if (normalized.startsWith('.')) return normalized;
+  if (normalized.startsWith(`.`)) return normalized;
   return `./${normalized}`;
 }
 
 function renderJsValue(value: unknown): string {
-  if (typeof value === 'string') {
-    if (value === 'undefined') return 'undefined';
+  if (typeof value === `string`) {
+    if (value === `undefined`) return `undefined`;
     return JSON.stringify(value);
   }
 
-  if (value === undefined) return 'undefined';
+  if (value === undefined) return `undefined`;
   return JSON.stringify(value);
 }
 
 function toIdentifier(value: string): string {
-  return value.replace(/[^A-Za-z0-9_$]/g, '_');
+  return value.replace(/[^A-Za-z0-9_$]/g, `_`);
 }
 
 function stableSerialize(value: unknown): string {
-  if (value === null || typeof value !== 'object') {
+  if (value === null || typeof value !== `object`) {
     return JSON.stringify(value);
   }
 
   if (Array.isArray(value)) {
-    return `[${value.map((item) => stableSerialize(item)).join(', ')}]`;
+    return `[${value.map((item) => stableSerialize(item)).join(`, `)}]`;
   }
 
   const entries = Object.entries(value as Record<string, unknown>)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, entryValue]) => `${JSON.stringify(key)}: ${stableSerialize(entryValue)}`);
 
-  return `{${entries.join(', ')}}`;
+  return `{${entries.join(`, `)}}`;
 }
 
-function toStateMessage(testCase: TestCaseSpecification['cases'][number], parameterOrder: string[]): string {
+function toStateMessage(testCase: TestCaseSpecification[`cases`][number], parameterOrder: string[]): string {
   const orderedKeys = parameterOrder.filter((name) => name in testCase.inputs);
   const otherKeys = Object.keys(testCase.inputs)
     .filter((name) => !orderedKeys.includes(name))
@@ -65,26 +65,26 @@ function toStateMessage(testCase: TestCaseSpecification['cases'][number], parame
 
   const keys = [...orderedKeys, ...otherKeys];
   if (!keys.length) {
-    return 'the inputs are defaulted';
+    return `the inputs are defaulted`;
   }
 
   const parts = keys.map((key) => {
     const description = testCase.stateDescriptions?.[key];
     return `${key} is ${description ?? stableSerialize(testCase.inputs[key])}`;
   });
-  return parts.join(', ');
+  return parts.join(`, `);
 }
 
-function toOutcomeMessage(testCase: TestCaseSpecification['cases'][number]): string {
-  if (testCase.expected.type === 'throw') {
+function toOutcomeMessage(testCase: TestCaseSpecification[`cases`][number]): string {
+  if (testCase.expected.type === `throw`) {
     if (testCase.expected.message) {
       return `should throw an error with message ${JSON.stringify(testCase.expected.message)}`;
     }
-    return 'should throw an error';
+    return `should throw an error`;
   }
 
-  if (testCase.expected.value === 'undefined') {
-    return 'should return undefined';
+  if (testCase.expected.value === `undefined`) {
+    return `should return undefined`;
   }
 
   return `should return ${stableSerialize(testCase.expected.value)}`;
@@ -111,7 +111,7 @@ function buildMockModuleDeclarations(
 
   return Array.from(modules.entries()).map(([moduleSpecifier, names]) => {
     const factoryEntries = Array.from(names).map((name) => `${name}: jest.fn()`);
-    return `jest.mock(${JSON.stringify(moduleSpecifier)}, () => ({ ${factoryEntries.join(', ')} }));`;
+    return `jest.mock(${JSON.stringify(moduleSpecifier)}, () => ({ ${factoryEntries.join(`, `)} }));`;
   });
 }
 
@@ -134,7 +134,7 @@ function buildMockImportStatements(
     }
   }
 
-  return Array.from(modules.entries()).map(([moduleSpecifier, names]) => `import { ${Array.from(names).join(', ')} } from ${JSON.stringify(moduleSpecifier)};`);
+  return Array.from(modules.entries()).map(([moduleSpecifier, names]) => `import { ${Array.from(names).join(`, `)} } from ${JSON.stringify(moduleSpecifier)};`);
 }
 
 function buildBeforeEachBlockWithCalls(
@@ -143,10 +143,10 @@ function buildBeforeEachBlockWithCalls(
 ): string {
   const entries = Object.entries(mocks ?? {});
   const chainExpectations = (callExpectations ?? []).filter((item) => item.path.length > 1);
-  if (!entries.length && !callExpectations?.length) return '';
+  if (!entries.length && !callExpectations?.length) return ``;
 
   const declarations = new Set<string>();
-  const lines = ['        beforeEach(() => {', '          jest.clearAllMocks();'];
+  const lines = [`        beforeEach(() => {`, `          jest.clearAllMocks();`];
 
   const chainRoots = new Map<string, Set<string[]>>();
   for (const expectation of chainExpectations) {
@@ -160,7 +160,7 @@ function buildBeforeEachBlockWithCalls(
     const pathList = Array.from(rawPaths.values());
 
     const buildObject = (segmentsList: string[][], key: string): { lines: string[]; objectVar: string } => {
-      const objectVar = `${toIdentifier(root)}_${key || 'result'}Mock`;
+      const objectVar = `${toIdentifier(root)}_${key || `result`}Mock`;
       declarations.add(objectVar);
       const childNames = Array.from(new Set(segmentsList.map((segments) => segments[0]).filter(Boolean)));
       const localLines: string[] = [];
@@ -175,17 +175,17 @@ function buildBeforeEachBlockWithCalls(
           const childObject = buildObject(childSegments.filter((segments) => segments.length > 0), childKey);
           localLines.push(...childObject.lines);
           localLines.push(`          jest.mocked(${objectVar}.${childName}).mockReturnValue(${childObject.objectVar} as any);`);
-          objectVarByPath.set([root, ...childSegments.length ? [childName] : []].join('>'), `${objectVar}.${childName}`);
+          objectVarByPath.set([root, ...childSegments.length ? [childName] : []].join(`>`), `${objectVar}.${childName}`);
         }
       }
 
       const factoryEntries = childNames.map((childName) => `${childName}: jest.fn()`);
-      localLines.unshift(`          ${objectVar} = { ${factoryEntries.join(', ')} };`);
+      localLines.unshift(`          ${objectVar} = { ${factoryEntries.join(`, `)} };`);
 
       return { lines: localLines, objectVar };
     };
 
-    const rootObject = buildObject(pathList, 'result');
+    const rootObject = buildObject(pathList, `result`);
     lines.push(...rootObject.lines);
     lines.push(`          jest.mocked(${root}).mockReturnValue(${rootObject.objectVar} as any);`);
   }
@@ -195,12 +195,12 @@ function buildBeforeEachBlockWithCalls(
     lines.push(`          jest.mocked(${name}).mockReturnValue(${renderJsValue(value)});`);
   }
 
-  lines.push('        });');
+  lines.push(`        });`);
 
   return [
     ...Array.from(declarations).map((name) => `        let ${name}: any;`),
     ...lines,
-  ].join('\n');
+  ].join(`\n`);
 }
 
 function buildCallAssertionLines(callExpectations: CallExpectation[] | undefined): string[] {
@@ -209,7 +209,7 @@ function buildCallAssertionLines(callExpectations: CallExpectation[] | undefined
   const accessorByPath = new Map<string, string>();
 
   const resolveAccessor = (pathSegments: string[]): string => {
-    const key = pathSegments.join('>');
+    const key = pathSegments.join(`>`);
     const cached = accessorByPath.get(key);
     if (cached) return cached;
 
@@ -225,7 +225,7 @@ function buildCallAssertionLines(callExpectations: CallExpectation[] | undefined
       return value;
     }
 
-    const parentAccessor = `${toIdentifier(root)}_${pathSegments.slice(1, -1).map((part) => `${toIdentifier(part)}_result`).join('_')}Mock.${pathSegments[pathSegments.length - 1]}`;
+    const parentAccessor = `${toIdentifier(root)}_${pathSegments.slice(1, -1).map((part) => `${toIdentifier(part)}_result`).join(`_`)}Mock.${pathSegments[pathSegments.length - 1]}`;
     accessorByPath.set(key, parentAccessor);
     return parentAccessor;
   };
@@ -235,7 +235,7 @@ function buildCallAssertionLines(callExpectations: CallExpectation[] | undefined
     return [
       `          expect(${accessor}).toHaveBeenCalled();`,
       `          expect(${accessor}).toHaveBeenCalledTimes(${expectation.args.length});`,
-      ...expectation.args.map((args) => `          expect(${accessor}).toHaveBeenCalledWith(${args.map((arg) => renderJsValue(arg)).join(', ')});`),
+      ...expectation.args.map((args) => `          expect(${accessor}).toHaveBeenCalledWith(${args.map((arg) => renderJsValue(arg)).join(`, `)});`),
     ];
   });
 }
@@ -244,25 +244,25 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
   const testBlocks = (spec.cases ?? []).map((testCase) => {
     const args = parameterOrder
       .map((param) => renderJsValue(testCase.inputs[param]))
-      .join(', ');
+      .join(`, `);
     const stateMessage = toStateMessage(testCase, parameterOrder);
     const outcomeMessage = toOutcomeMessage(testCase);
 
-    if (testCase.expected.type === 'throw') {
+    if (testCase.expected.type === `throw`) {
       const beforeEachBlock = buildBeforeEachBlockWithCalls(testCase.mocks, testCase.callExpectations);
       const callAssertions = buildCallAssertionLines(testCase.callExpectations);
       return [
         `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
         beforeEachBlock,
         `        it(${JSON.stringify(outcomeMessage)}, () => {`,
-        `          expect(() => ${callableName}(${args})).toThrow(${JSON.stringify(testCase.expected.message ?? '')});`,
+        `          expect(() => ${callableName}(${args})).toThrow(${JSON.stringify(testCase.expected.message ?? ``)});`,
         ...callAssertions,
-        '        });',
-        '      });',
-      ].filter(Boolean).join('\n');
+        `        });`,
+        `      });`,
+      ].filter(Boolean).join(`\n`);
     }
 
-    if (testCase.expected.value === 'undefined') {
+    if (testCase.expected.value === `undefined`) {
       const beforeEachBlock = buildBeforeEachBlockWithCalls(testCase.mocks, testCase.callExpectations);
       const callAssertions = buildCallAssertionLines(testCase.callExpectations);
       return [
@@ -270,11 +270,11 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
         beforeEachBlock,
         `        it(${JSON.stringify(outcomeMessage)}, () => {`,
         `          const result = ${callableName}(${args});`,
-        '          expect(result).toBeUndefined();',
+        `          expect(result).toBeUndefined();`,
         ...callAssertions,
-        '        });',
-        '      });',
-      ].filter(Boolean).join('\n');
+        `        });`,
+        `      });`,
+      ].filter(Boolean).join(`\n`);
     }
 
     const beforeEachBlock = buildBeforeEachBlockWithCalls(testCase.mocks, testCase.callExpectations);
@@ -286,13 +286,13 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
       `          const result = ${callableName}(${args});`,
       `          expect(result).toEqual(${renderJsValue(testCase.expected.value)});`,
       ...callAssertions,
-      '        });',
-      '      });',
-    ].filter(Boolean).join('\n');
+      `        });`,
+      `      });`,
+    ].filter(Boolean).join(`\n`);
   });
 
   const body = testBlocks.length
-    ? testBlocks.join('\n\n')
+    ? testBlocks.join(`\n\n`)
     : `      describe('and no cases are available', () => {\n        it('then it should keep the suite deterministic', () => {\n          expect(true).toBe(true);\n        });\n      });`;
 
   return [
@@ -301,12 +301,12 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
     `    describe(${JSON.stringify(`when I call ${callableName}()`)}, () => {`,
       body.replace(
         `      describe('and no cases are available', () => {\n        it('then it should keep the suite deterministic', () => {\n          expect(true).toBe(true);\n        });\n      });`,
-        `      describe('and no cases are available', () => {\n        it('then it should not throw', () => {\n          expect(() => ${callableName}(${parameterOrder.map(() => 'undefined').join(', ')})).not.toThrow();\n        });\n      });`
+        `      describe('and no cases are available', () => {\n        it('then it should not throw', () => {\n          expect(() => ${callableName}(${parameterOrder.map(() => `undefined`).join(`, `)})).not.toThrow();\n        });\n      });`
       ),
-    '    });',
-    '  });',
-    '});',
-  ].join('\n');
+    `    });`,
+    `  });`,
+    `});`,
+  ].join(`\n`);
 }
 
 export function createJestTests(input: TestGenerationInput): string {
@@ -328,11 +328,11 @@ export function createJestTests(input: TestGenerationInput): string {
   });
 
   return [
-    `import { ${importList.join(', ')} } from ${JSON.stringify(importSpecifier)};`,
+    `import { ${importList.join(`, `)} } from ${JSON.stringify(importSpecifier)};`,
     ...mockImports,
     ...mockDeclarations,
-    '',
-    suites.join('\n\n'),
-    '',
-  ].join('\n');
+    ``,
+    suites.join(`\n\n`),
+    ``,
+  ].join(`\n`);
 }

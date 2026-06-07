@@ -1,7 +1,7 @@
 export function pureFalsyNumber(value: number) {
   if (!value) {
-    return 'falsy';
+    return `falsy`;
   }
 
-  return 'truthy';
+  return `truthy`;
 }

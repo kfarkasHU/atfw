@@ -1,7 +1,7 @@
 export function pureTruthyObject(value: object | null) {
   if (value) {
-    return 'truthy';
+    return `truthy`;
   }
 
-  return 'falsy';
+  return `falsy`;
 }

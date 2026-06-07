@@ -1,3 +1,3 @@
 export function isTypeNumber(value: unknown) {
-  return typeof value === 'number';
+  return typeof value === `number`;
 }

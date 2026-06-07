@@ -1,4 +1,4 @@
-type NodeType = 'Entry' | 'Exit' | 'Branch' | 'Return' | 'Throw' | 'Effect';
+type NodeType = `Entry` | `Exit` | `Branch` | `Return` | `Throw` | `Effect`;
 
 type Node = {
   id: string;
@@ -24,61 +24,61 @@ type Node = {
 type Edge = {
   from: string;
   to: string;
-  label?: 'true' | 'false';
+  label?: `true` | `false`;
 };
 
 type LocalBindings = Record<string, unknown>;
 
 function formatCondition(condition: any): string {
-  if (!condition) return '';
+  if (!condition) return ``;
 
-  if (condition.type === 'IRUnary') {
+  if (condition.type === `IRUnary`) {
     return `!${formatCondition(condition.expr)}`;
   }
 
-  if (condition.type === 'IRBinary') {
+  if (condition.type === `IRBinary`) {
     const left = formatCondition(condition.left);
     const right = formatCondition(condition.right);
 
-    if (condition.op === '&&') {
+    if (condition.op === `&&`) {
       return `${left} and ${right}`;
     }
 
-    if (condition.op === '!==') {
-      return `${left} !== '${condition.right?.value ?? ''}'`;
+    if (condition.op === `!==`) {
+      return `${left} !== '${condition.right?.value ?? ``}'`;
     }
 
     return `${left} ${condition.op} ${right}`;
   }
 
-  if (condition.type === 'IRVar') return condition.name;
-  if (condition.type === 'IRConst') return String(condition.value);
+  if (condition.type === `IRVar`) return condition.name;
+  if (condition.type === `IRConst`) return String(condition.value);
 
-  return 'condition';
+  return `condition`;
 }
 
 function formatValue(value: any): string {
-  if (!value) return '';
+  if (!value) return ``;
 
-  if (value.type === 'IRConst') return String(value.value);
-  if (value.type === 'IRVar') return value.name;
-  if (value.type === 'IRArray') return `[${(value.elements ?? []).map((element: any) => formatValue(element)).join(', ')}]`;
+  if (value.type === `IRConst`) return String(value.value);
+  if (value.type === `IRVar`) return value.name;
+  if (value.type === `IRArray`) return `[${(value.elements ?? []).map((element: any) => formatValue(element)).join(`, `)}]`;
 
-  if (value.type === 'IRTemplate') {
+  if (value.type === `IRTemplate`) {
     return "`${title} ${name}`";
   }
 
-  if (value.type === 'IRNew') {
-    return `Error('${value.args?.[0]?.value ?? ''}')`;
+  if (value.type === `IRNew`) {
+    return `Error('${value.args?.[0]?.value ?? ``}')`;
   }
 
-  return 'value';
+  return `value`;
 }
 
 function evaluateLocalValue(value: any): unknown {
   if (!value) return null;
-  if (value.type === 'IRConst') return value.value;
-  if (value.type === 'IRArray') return (value.elements ?? []).map((element: any) => evaluateLocalValue(element));
+  if (value.type === `IRConst`) return value.value;
+  if (value.type === `IRArray`) return (value.elements ?? []).map((element: any) => evaluateLocalValue(element));
   return null;
 }
 
@@ -107,7 +107,7 @@ function createNode(nodes: Node[], type: NodeType, payload: Partial<Node> = {}):
   return node;
 }
 
-function addEdge(edges: Edge[], from: string, to: string, label?: 'true' | 'false') {
+function addEdge(edges: Edge[], from: string, to: string, label?: `true` | `false`) {
   const existingIndex = edges.findIndex((e) => e.from === from && e.to === to);
   if (existingIndex === -1) {
     edges.push(label ? { from, to, label } : { from, to });
@@ -126,7 +126,7 @@ function buildStatements(
   nodes: Node[],
   edges: Edge[],
   exitId: string,
-  incomingLabel?: 'true' | 'false'
+  incomingLabel?: `true` | `false`
 ): string {
   if (stmts.length === 0) {
     return current;
@@ -134,24 +134,24 @@ function buildStatements(
 
   const [stmt, ...rest] = stmts;
 
-  if (stmt.type === 'IRIf') {
-    const branch = createNode(nodes, 'Branch', {
+  if (stmt.type === `IRIf`) {
+    const branch = createNode(nodes, `Branch`, {
       condition: createConditionPayload(stmt.condition),
     });
 
     addEdge(edges, current, branch.id, incomingLabel);
 
-    const thenExit = buildStatements(stmt.then ?? [], branch.id, nodes, edges, exitId, 'true');
-    const elseExit = buildStatements(rest, branch.id, nodes, edges, exitId, 'false');
+    const thenExit = buildStatements(stmt.then ?? [], branch.id, nodes, edges, exitId, `true`);
+    const elseExit = buildStatements(rest, branch.id, nodes, edges, exitId, `false`);
 
-    addEdge(edges, branch.id, thenExit, 'true');
-    addEdge(edges, branch.id, elseExit, 'false');
+    addEdge(edges, branch.id, thenExit, `true`);
+    addEdge(edges, branch.id, elseExit, `false`);
 
     return branch.id;
   }
 
-  if (stmt.type === 'IRReturn') {
-    const ret = createNode(nodes, 'Return', {
+  if (stmt.type === `IRReturn`) {
+    const ret = createNode(nodes, `Return`, {
       value: createValuePayload(stmt.value),
     });
 
@@ -161,8 +161,8 @@ function buildStatements(
     return ret.id;
   }
 
-  if (stmt.type === 'IRThrow') {
-    const thr = createNode(nodes, 'Throw', {
+  if (stmt.type === `IRThrow`) {
+    const thr = createNode(nodes, `Throw`, {
       error: createValuePayload(stmt.error),
     });
 
@@ -172,8 +172,8 @@ function buildStatements(
     return thr.id;
   }
 
-  if (stmt.type === 'IRExpression') {
-    const effect = createNode(nodes, 'Effect', {
+  if (stmt.type === `IRExpression`) {
+    const effect = createNode(nodes, `Effect`, {
       effect: createValuePayload(stmt.expr),
     });
 
@@ -196,11 +196,11 @@ export function createCfg(ir: any) {
       const edges: Edge[] = [];
       const locals: LocalBindings = {};
 
-      const entry = createNode(nodes, 'Entry');
-      const exit = createNode(nodes, 'Exit');
+      const entry = createNode(nodes, `Entry`);
+      const exit = createNode(nodes, `Exit`);
 
       for (const statement of item.body ?? []) {
-        if (statement?.type === 'IRConstDecl') {
+        if (statement?.type === `IRConstDecl`) {
           locals[statement.name] = evaluateLocalValue(statement.value);
         }
       }
@@ -208,8 +208,8 @@ export function createCfg(ir: any) {
       buildStatements(item.body ?? [], entry.id, nodes, edges, exit.id);
 
       return {
-        type: 'CFG',
-        function: item.name ?? 'unknown',
+        type: `CFG`,
+        function: item.name ?? `unknown`,
         imports: item.imports ?? [],
         locals,
         entry: entry.id,

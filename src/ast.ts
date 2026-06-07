@@ -6,7 +6,7 @@ type ImportNode = {
 };
 
 function stringValue(node: any): string {
-  return node?.getText?.() ?? '';
+  return node?.getText?.() ?? ``;
 }
 
 function toExpressionNode(expression: any, optionalParams = new Set<string>()): any {
@@ -15,46 +15,46 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
   switch (expression.getKind()) {
     case SyntaxKind.Identifier: {
       return {
-        type: 'Identifier',
+        type: `Identifier`,
         name: expression.getText(),
       };
     }
     case SyntaxKind.TrueKeyword:
     case SyntaxKind.FalseKeyword: {
-      return { type: 'Const', value: expression.getText() === 'true' };
+      return { type: `Const`, value: expression.getText() === `true` };
     }
     case SyntaxKind.StringLiteral: {
-      return { type: 'Const', value: expression.getText().slice(1, -1) };
+      return { type: `Const`, value: expression.getText().slice(1, -1) };
     }
     case SyntaxKind.NumericLiteral: {
-      return { type: 'Const', value: Number(expression.getText()) };
+      return { type: `Const`, value: Number(expression.getText()) };
     }
     case SyntaxKind.TypeOfExpression: {
       return {
-        type: 'TypeOfExpression',
+        type: `TypeOfExpression`,
         expression: toExpressionNode(expression.getExpression(), optionalParams),
       };
     }
     case SyntaxKind.ArrayLiteralExpression: {
       return {
-        type: 'ArrayLiteralExpression',
+        type: `ArrayLiteralExpression`,
         elements: expression.getElements().map((element: any) => toExpressionNode(element, optionalParams)),
       };
     }
     case SyntaxKind.PrefixUnaryExpression: {
       return {
-        type: 'PrefixUnaryExpression',
-        operator: expression.getChildren()[0]?.getText?.() ?? '!',
+        type: `PrefixUnaryExpression`,
+        operator: expression.getChildren()[0]?.getText?.() ?? `!`,
         operand: toExpressionNode(expression.getOperand(), optionalParams),
       };
     }
     case SyntaxKind.BinaryExpression: {
-      const operator = expression.getChildren()[1]?.getText?.() ?? '';
+      const operator = expression.getChildren()[1]?.getText?.() ?? ``;
       const left = expression.getLeft();
       const right = expression.getRight();
 
       return {
-        type: 'BinaryExpression',
+        type: `BinaryExpression`,
         operator,
         left: toExpressionNode(left, optionalParams),
         right: toExpressionNode(right, optionalParams),
@@ -62,7 +62,7 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
     }
     case SyntaxKind.ConditionalExpression: {
       return {
-        type: 'ConditionalExpression',
+        type: `ConditionalExpression`,
         condition: toExpressionNode(expression.getCondition(), optionalParams),
         whenTrue: toExpressionNode(expression.getWhenTrue(), optionalParams),
         whenFalse: toExpressionNode(expression.getWhenFalse(), optionalParams),
@@ -70,7 +70,7 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
     }
     case SyntaxKind.CallExpression: {
       return {
-        type: 'CallExpression',
+        type: `CallExpression`,
         expression: toExpressionNode(expression.getExpression(), optionalParams),
         arguments: expression.getArguments().map((arg: any) => toExpressionNode(arg, optionalParams)),
       };
@@ -79,21 +79,21 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
       return toExpressionNode(expression.getExpression(), optionalParams);
     }
     case SyntaxKind.NullKeyword: {
-      return { type: 'Const', value: null };
+      return { type: `Const`, value: null };
     }
     case SyntaxKind.UndefinedKeyword: {
-      return { type: 'Const', value: 'undefined' };
+      return { type: `Const`, value: `undefined` };
     }
     case SyntaxKind.PropertyAccessExpression: {
       return {
-        type: 'PropertyAccessExpression',
+        type: `PropertyAccessExpression`,
         expression: toExpressionNode(expression.getExpression(), optionalParams),
         name: expression.getName(),
       };
     }
     case SyntaxKind.NewExpression: {
       return {
-        type: 'NewExpression',
+        type: `NewExpression`,
         expression: expression.getExpression().getText(),
         arguments: expression.getArguments().map((arg: any) => toExpressionNode(arg, optionalParams)),
       };
@@ -107,30 +107,30 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
 
       while ((match = regex.exec(inner)) !== null) {
         if (match.index > lastIndex) {
-          parts.push({ type: 'Const', value: inner.slice(lastIndex, match.index) });
+          parts.push({ type: `Const`, value: inner.slice(lastIndex, match.index) });
         }
 
         parts.push({
-          type: 'Identifier',
+          type: `Identifier`,
           name: match[1].trim(),
         });
         lastIndex = match.index + match[0].length;
       }
 
       if (lastIndex < inner.length) {
-        parts.push({ type: 'Const', value: inner.slice(lastIndex) });
+        parts.push({ type: `Const`, value: inner.slice(lastIndex) });
       }
 
-      return { type: 'TemplateExpression', parts };
+      return { type: `TemplateExpression`, parts };
     }
     case SyntaxKind.NoSubstitutionTemplateLiteral: {
-      return { type: 'Const', value: expression.getText().slice(1, -1) };
+      return { type: `Const`, value: expression.getText().slice(1, -1) };
     }
     case SyntaxKind.ThisKeyword: {
-      return { type: 'Identifier', name: 'this' };
+      return { type: `Identifier`, name: `this` };
     }
     default: {
-      return { type: 'Unknown', text: stringValue(expression) };
+      return { type: `Unknown`, text: stringValue(expression) };
     }
   }
 }
@@ -140,16 +140,16 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
 
   if (statement.getKind() === SyntaxKind.ReturnStatement) {
     return {
-      type: 'Terminal',
-      kind: 'return',
+      type: `Terminal`,
+      kind: `return`,
       value: toExpressionNode(statement.getExpression(), optionalParams),
     };
   }
 
   if (statement.getKind() === SyntaxKind.ThrowStatement) {
     return {
-      type: 'Terminal',
-      kind: 'throw',
+      type: `Terminal`,
+      kind: `throw`,
       error: toExpressionNode(statement.getExpression(), optionalParams),
     };
   }
@@ -166,7 +166,7 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
         : [];
 
     return {
-      type: 'IfStatement',
+      type: `IfStatement`,
       expression: toExpressionNode(statement.getExpression(), optionalParams),
       thenStatement: thenStatements,
       elseStatement: elseStatements,
@@ -176,21 +176,21 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
   if (statement.getKind() === SyntaxKind.Block) {
     const statements = statement.getStatements().map((child: any) => toStatementNode(child, optionalParams, functionDeclaration));
     return {
-      type: 'Block',
+      type: `Block`,
       body: statements,
     };
   }
 
   if (statement.getKind() === SyntaxKind.ExpressionStatement) {
     return {
-      type: 'Expression',
+      type: `Expression`,
       expression: toExpressionNode(statement.getExpression(), optionalParams),
     };
   }
 
   if (statement.getKind() === SyntaxKind.VariableStatement) {
     return {
-      type: 'VariableStatement',
+      type: `VariableStatement`,
       declarations: statement.getDeclarationList().getDeclarations().map((declaration: any) => ({
         name: declaration.getName(),
         initializer: toExpressionNode(declaration.getInitializer(), optionalParams),
@@ -199,14 +199,14 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
   }
 
   return {
-    type: 'UnknownStatement',
+    type: `UnknownStatement`,
     text: stringValue(statement),
   };
 }
 
 function toParameterNode(parameter: any): any {
   const typeNode = parameter.getTypeNode();
-  const typeName = typeNode?.getText() ?? parameter.getType().getText() ?? 'any';
+  const typeName = typeNode?.getText() ?? parameter.getType().getText() ?? `any`;
   const optional = parameter.hasQuestionToken();
 
   return {
@@ -239,7 +239,7 @@ function toFunctionNode(functionDeclaration: any, imports: ImportNode[]): any {
   );
 
   return {
-    type: 'Function',
+    type: `Function`,
     name: functionDeclaration.getName(),
     exported: functionDeclaration.hasModifier(SyntaxKind.ExportKeyword),
     params: functionDeclaration.getParameters().map((parameter: any) => toParameterNode(parameter)),

@@ -1,6 +1,6 @@
 type CfgNode = {
   id: string;
-  type: 'Entry' | 'Exit' | 'Branch' | 'Return' | 'Throw' | 'Effect';
+  type: `Entry` | `Exit` | `Branch` | `Return` | `Throw` | `Effect`;
   condition?: { text: string; expr: any };
   value?: { text: string; expr: any };
   error?: { text: string; expr: any };
@@ -10,7 +10,7 @@ type CfgNode = {
 type CfgEdge = {
   from: string;
   to: string;
-  label?: 'true' | 'false';
+  label?: `true` | `false`;
 };
 
 type Import = { module: string; names: string[] };
@@ -33,7 +33,7 @@ type PathConstraint = {
 };
 
 type PathOutcome = {
-  type: 'return' | 'throw';
+  type: `return` | `throw`;
   expr: any;
 };
 
@@ -45,7 +45,7 @@ type PathItem = {
 };
 
 interface SinglePath {
-  type: 'Paths',
+  type: `Paths`,
   function: string,
   imports: Array<Import>,
   locals: Record<string, unknown>,
@@ -67,49 +67,49 @@ function createSinglePath(cfg: CfgInput): SinglePath {
     const nextTrail = new Set(trail);
     nextTrail.add(nodeId);
 
-    if (node.type === 'Return') {
+    if (node.type === `Return`) {
       paths.push({
         id: `P${paths.length + 1}`,
         constraints,
         effects,
         outcome: {
-          type: 'return',
+          type: `return`,
           expr: node.value?.expr ?? null,
         },
       });
       return;
     }
 
-    if (node.type === 'Throw') {
+    if (node.type === `Throw`) {
       paths.push({
         id: `P${paths.length + 1}`,
         constraints,
         effects,
         outcome: {
-          type: 'throw',
+          type: `throw`,
           expr: node.error?.expr ?? null,
         },
       });
       return;
     }
 
-    if (node.type === 'Exit') {
+    if (node.type === `Exit`) {
       return;
     }
 
     const outgoing = getOutgoing(cfg.edges, nodeId);
 
-    if (node.type === 'Effect') {
+    if (node.type === `Effect`) {
       for (const edge of outgoing) {
         walk(edge.to, constraints, [...effects, { expr: node.effect?.expr ?? null }], nextTrail);
       }
       return;
     }
 
-    if (node.type === 'Branch' && node.condition) {
+    if (node.type === `Branch` && node.condition) {
       for (const edge of outgoing) {
-        if (edge.label !== 'true' && edge.label !== 'false') continue;
-        const value = edge.label === 'true';
+        if (edge.label !== `true` && edge.label !== `false`) continue;
+        const value = edge.label === `true`;
 
         walk(
           edge.to,
@@ -136,8 +136,8 @@ function createSinglePath(cfg: CfgInput): SinglePath {
   walk(cfg.entry, [], [], new Set<string>());
 
   return {
-    type: 'Paths',
-    function: cfg.function ?? 'unknown',
+    type: `Paths`,
+    function: cfg.function ?? `unknown`,
     imports: cfg.imports ?? [],
     locals: cfg.locals ?? {},
     paths,
