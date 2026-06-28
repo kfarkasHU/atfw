@@ -18,4 +18,5 @@ node_modules
 dist
 
 TODO
-src_old/
+src_old_v1/
+src_old_v2/
