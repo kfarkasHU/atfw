@@ -10,7 +10,16 @@ const isNil = (obj: unknown): obj is Nil => obj === null || obj === undefined;
 const isDefined = <T>(obj: unknown): obj is NonNullable<T> => obj !== null && obj !== undefined;
 
 // Typings
-interface Path {}
+interface Path {
+  constraints: Expression[];
+  statements: Statement[];
+  terminal: TerminalStatement;
+}
+
+interface WalkState {
+  constraints: Expression[];
+  statements: Statement[];
+}
 
 interface Node {
   type: string;
@@ -76,7 +85,7 @@ interface TemplateHeadExpression extends TemplatePartExpression {
 
 interface TemplateSpanExpression extends TemplatePartExpression {
   templatePartType: "span";
-  token: Expression;
+  token: Node;
   literal: string;
 }
 
@@ -113,6 +122,43 @@ interface UnaryExpression extends LogicalExpression {
   operator: any;
 }
 
+interface LiteralExpression extends Expression {
+  expressionType: "literal";
+}
+
+interface FunctionExpression extends Expression {
+  expressionType: "function";
+}
+
+interface DeleteExpression extends Expression {
+  expressionType: "delete";
+  expression: Node;
+}
+
+interface ArrowFunctionExpression extends FunctionExpression {
+  functionExpressionType: "arrow";
+  name: string;
+  parameters: ReadonlyArray<Node>;
+  body: Node;
+  returnType: string;
+}
+
+interface ObjectLiteralExpression extends LiteralExpression {
+  literalExpressionType: "object";
+  properties: ReadonlyArray<Node>;
+}
+
+interface ArrayLiteralExpression extends LiteralExpression {
+  literalExpressionType: "array";
+  elements: ReadonlyArray<Node>;
+}
+
+interface PropertyAccessExpression extends Expression {
+  expressionType: "propertyaccess";
+  object: Node;
+  property: string;
+}
+
 interface NewExpression extends Expression {
   expressionType: "new";
   expression: Node;
@@ -121,6 +167,7 @@ interface NewExpression extends Expression {
 
 interface Statement extends Node {
   type: "statement";
+  statementType: string;
 }
 
 interface VariableStatement extends Statement {
@@ -133,6 +180,19 @@ interface VariableDeclaration extends Statement {
   variableName?: Node;
   variableType: string;
   variableInitializer?: Node;
+}
+
+interface PropertyAssignment extends Statement {
+  statementType: "property";
+  initializer: Node;
+  name: string;
+}
+
+interface ParameterDeclaration extends Statement {
+  statementType: "parameters";
+  initializer?: Node;
+  name: string;
+  isOptional: boolean;
 }
 
 interface TerminalStatement extends Statement {
@@ -199,29 +259,15 @@ const isSymbolExported = (
   return false;
 };
 
-const _isBlockNode = (node: Node): node is BlockNode => node.type === "block";
-
 // LOGIC
-const getAllPaths = (node: Node, parentTree: Array<Path>) => {
-
-}
-
-const getPaths = (node: Node): ReadonlyArray<Path> => {
-  const result: Array<Path> = [];
-
-  if (_isBlockNode(node)) {
-    for (const child of node.nodes) {
-      const currentPath = [];
-
-    }
-  }
-
-  return result;
-}
-
 const isBlockNode = (node: ts.Node) => ts.isBlock(node);
 const isTerminalNode = (node: ts.Node) => ts.isThrowStatement(node) || ts.isReturnStatement(node);
 const isBranchNode = (node: ts.Node) => ts.isIfStatement(node) || ts.isConditionalExpression(node);
+const isBlockNodeNode = (node: Node): node is BlockNode => node.type === "node" && "nodeType" in node && node.nodeType === "block";
+const isStatementNode = (node: Node): node is Statement => node.type === "statement" && "statementType" in node;
+const isTerminalStatementNode = (node: Node): node is TerminalStatement => isStatementNode(node) && node.statementType === "terminal";
+const isBranchIfStatementNode = (node: Node): node is BranchIfStatement => isStatementNode(node) && node.statementType === "branch" && "branchType" in node && node.branchType === "if";
+
 
 const createBlockNode = (node: ts.Block): BlockNode => {
   return {
@@ -264,6 +310,25 @@ const createVariableDeclaration = (node: ts.VariableDeclaration): VariableDeclar
     variableName: createNode(node.name),
     variableInitializer: isDefined(node.initializer) ? createNode(node.initializer) : undefined,
     variableType: node.type?.getText() ?? "any"
+  }
+}
+
+const createPropertyAssignment = (node: ts.PropertyAssignment): PropertyAssignment => {
+  return {
+    type: "statement",
+    statementType: "property",
+    initializer: createNode(node.initializer),
+    name: node.name.getText()
+  }
+}
+
+const createParameterDeclaration = (node: ts.ParameterDeclaration): ParameterDeclaration => {
+  return {
+    type: "statement",
+    statementType: "parameters",
+    initializer: isDefined(node.initializer) ? createNode(node.initializer) : undefined,
+    isOptional: node.questionToken ? true : false,
+    name: node.name.getText()
   }
 }
 
@@ -412,6 +477,53 @@ const createBinaryOperator = (node: ts.BinaryOperatorToken): BinaryOperator => {
   }
 }
 
+const createDeleteExpression = (expression: ts.DeleteExpression): DeleteExpression => {
+  return {
+    type: "expression",
+    expressionType: "delete",
+    expression: createNode(expression.expression)
+  }
+}
+
+const createArrowFunctionExpression = (expression: ts.ArrowFunction): ArrowFunctionExpression => {
+  return {
+    type: "expression",
+    expressionType: "function",
+    functionExpressionType: "arrow",
+    name: expression.name,
+    body: createNode(expression.body),
+    parameters: expression.parameters.map(m => createNode(m)),
+    returnType: expression.type?.getText() ?? "any"
+  }
+}
+
+const createObjectLiteralExpression = (expression: ts.ObjectLiteralExpression): ObjectLiteralExpression => {
+  return {
+    type: "expression",
+    expressionType: "literal",
+    literalExpressionType: "object",
+    properties: expression.properties.map(m => createNode(m))
+  }
+}
+
+const createArrayLiteralExpression = (expression: ts.ArrayLiteralExpression): ArrayLiteralExpression => {
+  return {
+    type: "expression",
+    expressionType: "literal",
+    literalExpressionType: "array",
+    elements: expression.elements.map(m => createNode(m))
+  }
+}
+
+const createProperyAccessExpression = (expression: ts.PropertyAccessExpression): PropertyAccessExpression => {
+  return {
+    type: "expression",
+    expressionType: "propertyaccess",
+    object: createNode(expression.expression),
+    property: expression.name.text
+  };
+}
+
 const createUnaryExpression = (node: ts.PrefixUnaryExpression): UnaryExpression => {
   function getOperator(operator: ts.SyntaxKind) {
     switch (operator) {
@@ -462,20 +574,31 @@ const createTemplateLiteralNode = (node: ts.TemplateSpan): TemplateSpanExpressio
     templateType: "part",
     templatePartType: "span",
     literal: node.literal.text,
-    token: createExpression(node.expression)
+    token: createNode(node.expression)
   }
 }
 
-const createExpression = (expression: ts.Expression): Expression => {
-  if (ts.isTemplateExpression(expression)) return createTemplateExpression(expression);
-
+const createExpression = (expression: ts.Expression): Node => {
+  if (ts.isParenthesizedExpression(expression)) return createNode(expression.expression);
+  
   switch (expression.kind) {
     case ts.SyntaxKind.NullKeyword: return createNullExpression();
     case ts.SyntaxKind.TrueKeyword: return createTrueExpression();
     case ts.SyntaxKind.FalseKeyword: return createFalseExpression();
   }
 
-  return undefined as unknown as Expression;
+  if (ts.isTemplateExpression(expression)) return createTemplateExpression(expression);
+  if (ts.isCallExpression(expression)) return createCallExpression(expression);
+  if (ts.isNewExpression(expression)) return createNewExpression(expression);
+  if (ts.isBinaryExpression(expression)) return createBinaryExpression(expression);
+  if (ts.isPrefixUnaryExpression(expression)) return createUnaryExpression(expression);
+  if (ts.isPropertyAccessExpression(expression)) return createProperyAccessExpression(expression);
+  if (ts.isArrayLiteralExpression(expression)) return createArrayLiteralExpression(expression);
+  if (ts.isObjectLiteralExpression(expression)) return createObjectLiteralExpression(expression);
+  if (ts.isArrowFunction(expression)) return createArrowFunctionExpression(expression);
+  if (ts.isDeleteExpression(expression)) return createDeleteExpression(expression);
+
+  throw `Expression type was not found! '${expression.kind}'`;
 }
 
 const createNode = (node: ts.Node): Node => {
@@ -486,18 +609,16 @@ const createNode = (node: ts.Node): Node => {
   if (ts.isNumericLiteral(node)) return createNumberExpression(node);
   if (ts.isTemplateHead(node)) return createTemplateHeadNode(node);
   if (ts.isTemplateSpan(node)) return createTemplateLiteralNode(node);
-  if (ts.isCallExpression(node)) return createCallExpression(node);
-  if (ts.isNewExpression(node)) return createNewExpression(node);
-  if (ts.isPrefixUnaryExpression(node)) return createUnaryExpression(node);
-  if (ts.isBinaryExpression(node)) return createBinaryExpression(node);
   if (ts.isBinaryOperatorToken(node)) return createBinaryOperator(node);
   if (ts.isVariableStatement(node)) return createVariableStatement(node);
   if (ts.isVariableDeclaration(node)) return createVariableDeclaration(node);
+  if (ts.isPropertyAssignment(node)) return createPropertyAssignment(node);
+  if (ts.isParameter(node)) return createParameterDeclaration(node);
 
   if (ts.isIdentifier(node)) return createIdentifier(node);
   if (ts.isExpression(node)) return createExpression(node);
 
-  return undefined as unknown as Node;
+  throw `Node type was not found! '${node.kind}'`;
 }
 
 const createNormalizedIR = (node: ts.Node): Node => {
@@ -652,7 +773,278 @@ export const runATFW = (
     nir: createNormalizedIR(m)
   }));
 
-  const content = JSON.stringify(objectsToTestWithSchemanticsAndImports, undefined, 2);
+  const nirs = objectsToTestWithSchemanticsAndImports.map(m => getPaths(m.nir as BlockNode)).flat();
+  const traces = nirs.map(m => buildTrace(m));
+
+  const content = JSON.stringify(traces, undefined, 2);
   mkdirSync(dirname(outputFilePath), { recursive: true });
   writeFileSync(outputFilePath, content, "utf-8");
 }
+
+// PATH MAPPING START
+const isNot = (node: Node): node is UnaryExpression => !isStatementNode(node) && (node as any).logicalExpressionType === "unary" && (node as UnaryExpression).operator === "exclamation";
+const isBinary = (node: Node): node is BinaryExpression => !isStatementNode(node) && (node as any).logicalExpressionType === "binary";
+
+const negateExpression = (expr: Node): Expression => {
+  if (isNot(expr)) {
+    return (expr as UnaryExpression).operand as Expression;
+  }
+
+  // TODO: Do De Morgan later
+  // if (isBinary(expr)) {
+  //   const binaryExpression = expr as BinaryExpression;
+  //   const tokenSymbol = binaryExpression.tokenSymbol as BinaryOperator;
+
+  //   if (tokenSymbol.value === "and") {
+  //     const operator: BinaryOperator = {
+  //       type: "expression",
+  //       expressionType: "operator",
+  //       value: "or",
+  //     };
+  //     const result: BinaryExpression = {
+  //       type: "expression",
+  //       expressionType: "logical",
+  //       logicalExpressionType: "binary",
+  //       tokenSymbol: operator,
+  //       left: negateExpression(binaryExpression.left),
+  //       right: negateExpression(binaryExpression),
+  //     };
+  //     return result;
+  //   }
+
+  //   if (tokenSymbol.value === "or") {
+  //     const operator: BinaryOperator = {
+  //       type: "expression",
+  //       expressionType: "operator",
+  //       value: "and",
+  //     };
+  //     const result: BinaryExpression = {
+  //       type: "expression",
+  //       expressionType: "logical",
+  //       logicalExpressionType: "binary",
+  //       tokenSymbol: operator,
+  //       left: negateExpression(binaryExpression.left),
+  //       right: negateExpression(binaryExpression.right),
+  //     };
+  //     return result;
+  //   }
+  // }
+
+  const result: UnaryExpression = {
+    type: "expression",
+    expressionType: "logical",
+    logicalExpressionType: "unary",
+    operator: "exclamation",
+    operand: expr,
+  };
+  return result;
+};
+
+const getPaths = (root: BlockNode): Path[] => {
+  return walkBlock(root.nodes, {
+    constraints: [],
+    statements: [],
+  });
+};
+
+const walkBlock = (
+  nodes: readonly Node[],
+  state: WalkState,
+): Path[] => {
+  if (nodes.length === 0) {
+    return [];
+  }
+
+  const [current, ...remaining] = nodes;
+
+  return walkNode(
+    current,
+    remaining,
+    state,
+  );
+};
+
+const walkNode = (
+  node: Node,
+  remaining: readonly Node[],
+  state: WalkState,
+): Path[] => {
+  if (isTerminalStatementNode(node)) {
+    return [{
+      constraints: [...state.constraints],
+      statements: [...state.statements],
+      terminal: node,
+    }];
+  }
+
+  if (isBranchIfStatementNode(node)) {
+    return walkIf(
+      node,
+      remaining,
+      state,
+    );
+  }
+
+  if (isBlockNodeNode(node)) {
+    return walkBlock(
+      [...node.nodes, ...remaining],
+      state,
+    );
+  }
+
+  if (isStatementNode(node)) {
+    return walkBlock(
+      remaining,
+      {
+        constraints: state.constraints,
+        statements: [
+          ...state.statements,
+          node,
+        ],
+      },
+    );
+  }
+
+  return walkBlock(
+    remaining,
+    state,
+  );
+};
+
+const walkIf = (
+  node: BranchIfStatement,
+  remaining: readonly Node[],
+  state: WalkState,
+): Path[] => {
+  const trueState: WalkState = {
+    constraints: [
+      ...state.constraints,
+      node.expression as Expression,
+    ],
+    statements: [...state.statements],
+  };
+
+  const falseState: WalkState = {
+    constraints: [
+      ...state.constraints,
+      negateExpression(node.expression),
+    ],
+    statements: [...state.statements],
+  };
+
+  const truePaths = walkBranchTarget(
+    node.whenTrue,
+    remaining,
+    trueState,
+  );
+
+  const falsePaths = node.whenFalse
+    ? walkBranchTarget(
+        node.whenFalse,
+        remaining,
+        falseState,
+      )
+    : walkBlock(
+        remaining,
+        falseState,
+      );
+
+  return [
+    ...truePaths,
+    ...falsePaths,
+  ];
+};
+
+const walkBranchTarget = (
+  target: Node,
+  remaining: readonly Node[],
+  state: WalkState,
+): Path[] => {
+  if (isTerminalStatementNode(target)) {
+    return [{
+      constraints: [...state.constraints],
+      statements: [...state.statements],
+      terminal: target,
+    }];
+  }
+
+  if (isBlockNodeNode(target)) {
+    return walkBlock(
+      [...target.nodes, ...remaining],
+      state,
+    );
+  }
+
+  return walkNode(
+    target,
+    remaining,
+    state,
+  );
+};
+// PATH MAPPING END
+
+// TRACE START
+interface Trace {
+  condition: Expression;
+  terminal: TerminalStatement;
+}
+
+const buildTraceCondition = (constraints: Expression[]): Expression => {
+  if (constraints.length === 0) {
+    return {
+      type: "expression",
+      expressionType: "constant",
+      constantExpressionType: "true",
+    } as Expression;
+  }
+
+  return constraints.reduce((acc, curr) => ({
+    type: "expression",
+    expressionType: "logical",
+    logicalExpressionType: "binary",
+    tokenSymbol: {
+      type: "expression",
+      expressionType: "operator",
+      value: "and",
+    },
+    left: acc,
+    right: curr,
+  }));
+};
+
+const buildTrace = (path: Path): Trace => {
+  return {
+    condition: buildTraceCondition(path.constraints),
+    terminal: path.terminal,
+  };
+};
+
+// TRACE END
+
+// TESTS START
+
+const generateTests = (trace: Trace) => {
+  const terminal = getTerminal(trace);
+}
+
+const isTerminal = (terminalLike: Statement): terminalLike is TerminalReturnStatement | TerminalThrowStatement => "terminalType" in terminalLike;
+const isThrowTerminal = (terminal: TerminalStatement) => isTerminal(terminal) && terminal.terminalType === "throw";
+const isReturnTerminal = (terminal: TerminalStatement) => isTerminal(terminal) && terminal.terminalType === "return";
+const getTerminal = (trace: Trace) => {
+  const terminal = trace.terminal;
+
+  if (isThrowTerminal(terminal)) {
+    return {
+      message: "It should throw."
+    }
+  }
+
+  if (isReturnTerminal(terminal)) {
+    return {
+      message: "should return "
+    }
+  }
+
+}
+
+// TESTS END
