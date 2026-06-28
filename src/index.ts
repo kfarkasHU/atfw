@@ -123,6 +123,18 @@ interface Statement extends Node {
   type: "statement";
 }
 
+interface VariableStatement extends Statement {
+  statementType: "variable";
+  declarations: ReadonlyArray<Node>;
+}
+
+interface VariableDeclaration extends Statement {
+  statementType: "variable";
+  variableName?: Node;
+  variableType: string;
+  variableInitializer?: Node;
+}
+
 interface TerminalStatement extends Statement {
   statementType: "terminal";
   expression?: Node;
@@ -144,14 +156,14 @@ interface BranchStatement extends Statement {
 
 interface BranchIfStatement extends BranchStatement {
   branchType: "if";
-  left: Node;
-  right?: Node;
+  whenTrue: Node;
+  whenFalse?: Node;
 }
 
 interface BranchTernaryStatement extends BranchStatement {
   branchType: "ternary";
-  left: Node;
-  right: Node;
+  whenTrue: Node;
+  whenFalse: Node;
 }
 
 
@@ -237,6 +249,24 @@ const createThrowStatement = (node: ts.ThrowStatement): TerminalThrowStatement =
   }
 }
 
+const createVariableStatement = (node: ts.VariableStatement): VariableStatement => {
+  return {
+    type: "statement",
+    statementType: "variable",
+    declarations: node.declarationList.declarations.map(m => createNode(m))
+  }
+}
+
+const createVariableDeclaration = (node: ts.VariableDeclaration): VariableDeclaration => {
+  return {
+    type: "statement",
+    statementType: "variable",
+    variableName: createNode(node.name),
+    variableInitializer: isDefined(node.initializer) ? createNode(node.initializer) : undefined,
+    variableType: node.type?.getText() ?? "any"
+  }
+}
+
 const createTerminalNode = (node: ts.ThrowStatement | ts.ReturnStatement): TerminalStatement => {
   if (ts.isReturnStatement(node)) return createReturnStatement(node);
   if (ts.isThrowStatement(node)) return createThrowStatement(node);
@@ -248,8 +278,8 @@ const createBranchTernaryNode = (node: ts.ConditionalExpression): BranchTernaryS
     type: "statement",
     statementType: "branch",
     branchType: "ternary",
-    left: createNode(node.whenTrue),
-    right: createNode(node.whenFalse),
+    whenTrue: createNode(node.whenTrue),
+    whenFalse: createNode(node.whenFalse),
     expression: createNode(node.condition)
   }
 }
@@ -259,8 +289,8 @@ const createBranchIfNode = (node: ts.IfStatement): BranchIfStatement => {
     type: "statement",
     statementType: "branch",
     branchType: "if",
-    left: createNode(node.thenStatement),
-    right: isDefined(node.elseStatement) ? createNode(node.elseStatement) : undefined,
+    whenTrue: createNode(node.thenStatement),
+    whenFalse: isDefined(node.elseStatement) ? createNode(node.elseStatement) : undefined,
     expression: createNode(node.expression)
   }
 }
@@ -383,12 +413,24 @@ const createBinaryOperator = (node: ts.BinaryOperatorToken): BinaryOperator => {
 }
 
 const createUnaryExpression = (node: ts.PrefixUnaryExpression): UnaryExpression => {
+  function getOperator(operator: ts.SyntaxKind) {
+    switch (operator) {
+      case SyntaxKind.PlusPlusToken: return "plusplus";
+      case SyntaxKind.MinusMinusToken: return "minusminus";
+      case SyntaxKind.PlusToken: return "plus"
+      case SyntaxKind.MinusToken: return "minus";
+      case SyntaxKind.TildeToken: return "tilde";
+      case SyntaxKind.ExclamationToken: return "exclamation";
+      default: throw `Cannot determine operator for '${operator}'!`;
+    }
+  }
+
   return {
     type: "expression",
     expressionType: "logical",
     logicalExpressionType: "unary",
     operand: createNode(node.operand),
-    operator: node.operator
+    operator: getOperator(node.operator)
   }
 }
 
@@ -449,6 +491,8 @@ const createNode = (node: ts.Node): Node => {
   if (ts.isPrefixUnaryExpression(node)) return createUnaryExpression(node);
   if (ts.isBinaryExpression(node)) return createBinaryExpression(node);
   if (ts.isBinaryOperatorToken(node)) return createBinaryOperator(node);
+  if (ts.isVariableStatement(node)) return createVariableStatement(node);
+  if (ts.isVariableDeclaration(node)) return createVariableDeclaration(node);
 
   if (ts.isIdentifier(node)) return createIdentifier(node);
   if (ts.isExpression(node)) return createExpression(node);

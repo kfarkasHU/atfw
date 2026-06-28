@@ -67,3 +67,14 @@ export function test(isVisible: boolean, name: string, title?: string) {
   if (title && title !== "Dr") throw new Error("Title must be Dr or nil!");
   return `${title} ${name}`;
 }
+
+// function loadData(): { id: string }[] {
+//   return [];
+// }
+
+// export function loadDataAndMap() {
+//   const data = loadData();
+//   if(!data) return [];
+//   const result = data.map(m => ({ name: m.id }));
+//   return result;
+// }

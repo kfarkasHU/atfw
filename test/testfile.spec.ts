@@ -589,13 +589,13 @@
             "type": "statement",
             "statementType": "branch",
             "branchType": "ternary",
-            "left": {
+            "whenTrue": {
               "type": "expression",
               "expressionType": "constant",
               "constantExpressionType": "string",
               "text": "left"
             },
-            "right": {
+            "whenFalse": {
               "type": "expression",
               "expressionType": "constant",
               "constantExpressionType": "string",
@@ -656,7 +656,7 @@
           "type": "statement",
           "statementType": "branch",
           "branchType": "if",
-          "left": {
+          "whenTrue": {
             "type": "statement",
             "statementType": "terminal",
             "terminalType": "return",
@@ -676,14 +676,14 @@
               "dynamicExpressionType": "variable",
               "variableName": "isVisible"
             },
-            "operator": 54
+            "operator": "exclamation"
           }
         },
         {
           "type": "statement",
           "statementType": "branch",
           "branchType": "if",
-          "left": {
+          "whenTrue": {
             "type": "statement",
             "statementType": "terminal",
             "terminalType": "throw",
