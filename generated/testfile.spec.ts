@@ -1,80 +1,88 @@
 {
-  "type": "Function",
-  "name": "checkUser",
-  "exported": false,
+  "type": "IRFunction",
+  "name": "test",
   "params": [
-    {
-      "name": "x",
-      "type": "number",
-      "optional": false
-    },
-    {
-      "name": "user",
-      "type": "{ blocked: boolean }",
-      "optional": false
-    }
+    "isVisible",
+    "name",
+    "title"
   ],
   "body": [
     {
-      "type": "IfStatement",
-      "expression": {
-        "type": "BinaryExpression",
-        "operator": ">",
-        "left": {
-          "type": "Identifier",
-          "name": "x"
-        },
-        "right": {
-          "type": "Const",
-          "value": 10
+      "type": "IRIf",
+      "condition": {
+        "type": "IRUnary",
+        "op": "!",
+        "expr": {
+          "type": "IRVar",
+          "name": "isVisible"
         }
       },
-      "thenStatement": [
+      "then": [
         {
-          "type": "Terminal",
-          "kind": "return",
+          "type": "IRReturn",
           "value": {
-            "type": "Const",
-            "value": "A"
+            "type": "IRVar",
+            "name": "undefined"
           }
         }
-      ],
-      "elseStatement": []
+      ]
     },
     {
-      "type": "IfStatement",
-      "expression": {
-        "type": "PropertyAccessExpression",
-        "expression": {
-          "type": "Identifier",
-          "name": "user"
+      "type": "IRIf",
+      "condition": {
+        "type": "IRBinary",
+        "op": "&&",
+        "left": {
+          "type": "IRVar",
+          "name": "title"
         },
-        "name": "blocked"
+        "right": {
+          "type": "IRBinary",
+          "op": "!==",
+          "left": {
+            "type": "IRVar",
+            "name": "title"
+          },
+          "right": {
+            "type": "IRConst",
+            "value": "Dr"
+          }
+        }
       },
-      "thenStatement": [
+      "then": [
         {
-          "type": "Terminal",
-          "kind": "throw",
+          "type": "IRThrow",
           "error": {
-            "type": "NewExpression",
-            "expression": "Error",
-            "arguments": [
+            "type": "IRNew",
+            "class": "Error",
+            "args": [
               {
-                "type": "Const",
-                "value": "blocked"
+                "type": "IRConst",
+                "value": "Title must be Dr or nil!"
               }
             ]
           }
         }
-      ],
-      "elseStatement": []
+      ]
     },
     {
-      "type": "Terminal",
-      "kind": "return",
+      "type": "IRReturn",
       "value": {
-        "type": "Const",
-        "value": "B"
+        "type": "IRTemplate",
+        "parts": [
+          {
+            "type": "IRVar",
+            "name": "title"
+          },
+          {
+            "type": "IRConst",
+            "value": " "
+          },
+          {
+            "type": "IRVar",
+            "name": "name"
+          }
+        ]
       }
     }
   ]
