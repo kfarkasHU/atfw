@@ -1,105 +1,80 @@
 {
   "type": "Function",
-  "name": "test",
-  "exported": true,
+  "name": "checkUser",
+  "exported": false,
   "params": [
     {
-      "name": "isVisible",
-      "type": "boolean",
+      "name": "x",
+      "type": "number",
       "optional": false
     },
     {
-      "name": "name",
-      "type": "string",
+      "name": "user",
+      "type": "{ blocked: boolean }",
       "optional": false
-    },
-    {
-      "name": "title",
-      "type": "string?",
-      "optional": true
     }
   ],
   "body": [
     {
-      "type": "Branch",
-      "condition": {
-        "type": "UnaryPredicate",
-        "op": "!",
-        "expr": {
-          "type": "Var",
-          "name": "isVisible"
-        }
-      },
-      "then": {
-        "type": "Terminal",
-        "kind": "return",
-        "value": {
-          "type": "Const",
-          "value": "undefined"
-        }
-      }
-    },
-    {
-      "type": "Branch",
-      "condition": {
-        "type": "AndPredicate",
+      "type": "IfStatement",
+      "expression": {
+        "type": "BinaryExpression",
+        "operator": ">",
         "left": {
-          "type": "ExistsPredicate",
-          "value": {
-            "type": "Var",
-            "name": "title",
-            "optional": true
-          }
+          "type": "Identifier",
+          "name": "x"
         },
         "right": {
-          "type": "BinaryPredicate",
-          "op": "!=",
-          "left": {
-            "type": "Var",
-            "name": "title",
-            "optional": true
-          },
-          "right": {
-            "type": "Const",
-            "value": "Dr"
-          }
+          "type": "Const",
+          "value": 10
         }
       },
-      "then": {
-        "type": "Terminal",
-        "kind": "throw",
-        "error": {
-          "type": "NewObject",
-          "class": "Error",
-          "args": [
-            {
-              "type": "Const",
-              "value": "Title must be Dr or nil!"
-            }
-          ]
+      "thenStatement": [
+        {
+          "type": "Terminal",
+          "kind": "return",
+          "value": {
+            "type": "Const",
+            "value": "A"
+          }
         }
-      }
+      ],
+      "elseStatement": []
+    },
+    {
+      "type": "IfStatement",
+      "expression": {
+        "type": "PropertyAccessExpression",
+        "expression": {
+          "type": "Identifier",
+          "name": "user"
+        },
+        "name": "blocked"
+      },
+      "thenStatement": [
+        {
+          "type": "Terminal",
+          "kind": "throw",
+          "error": {
+            "type": "NewExpression",
+            "expression": "Error",
+            "arguments": [
+              {
+                "type": "Const",
+                "value": "blocked"
+              }
+            ]
+          }
+        }
+      ],
+      "elseStatement": []
     },
     {
       "type": "Terminal",
       "kind": "return",
       "value": {
-        "type": "TemplateString",
-        "parts": [
-          {
-            "type": "Var",
-            "name": "title",
-            "optional": true
-          },
-          {
-            "type": "Const",
-            "value": " "
-          },
-          {
-            "type": "Var",
-            "name": "name"
-          }
-        ]
+        "type": "Const",
+        "value": "B"
       }
     }
   ]

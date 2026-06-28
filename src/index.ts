@@ -11,15 +11,9 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
 
   switch (expression.getKind()) {
     case SyntaxKind.Identifier: {
-      const name = expression.getText();
-      if (name === 'undefined') {
-        return { type: 'Const', value: 'undefined' };
-      }
-
       return {
-        type: 'Var',
-        name,
-        ...(optionalParams.has(name) ? { optional: true } : {}),
+        type: 'Identifier',
+        name: expression.getText(),
       };
     }
     case SyntaxKind.TrueKeyword:
@@ -33,11 +27,10 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
       return { type: 'Const', value: Number(expression.getText()) };
     }
     case SyntaxKind.PrefixUnaryExpression: {
-      const operator = expression.getChildren()[0]?.getText?.() ?? '!';
       return {
-        type: 'UnaryPredicate',
-        op: operator,
-        expr: toExpressionNode(expression.getOperand(), optionalParams),
+        type: 'PrefixUnaryExpression',
+        operator: expression.getChildren()[0]?.getText?.() ?? '!',
+        operand: toExpressionNode(expression.getOperand(), optionalParams),
       };
     }
     case SyntaxKind.BinaryExpression: {
@@ -50,34 +43,22 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
       const left = expression.getLeft();
       const right = expression.getRight();
 
-      if (op === '&&') {
-        return {
-          type: 'AndPredicate',
-          left: left.getKind() === SyntaxKind.Identifier
-            ? { type: 'ExistsPredicate', value: toExpressionNode(left, optionalParams) }
-            : toExpressionNode(left, optionalParams),
-          right: toExpressionNode(right, optionalParams),
-        };
-      }
-
-      if (op === '!==') {
-        return {
-          type: 'BinaryPredicate',
-          op,
-          left: toExpressionNode(left, optionalParams),
-          right: toExpressionNode(right, optionalParams),
-        };
-      }
-
       return {
-        type: 'BinaryPredicate',
-        op,
+        type: 'BinaryExpression',
+        operator: op,
         left: toExpressionNode(left, optionalParams),
         right: toExpressionNode(right, optionalParams),
       };
     }
     case SyntaxKind.ParenthesizedExpression: {
-      return toExpressionNode(expression.getExpression());
+      return toExpressionNode(expression.getExpression(), optionalParams);
+    }
+    case SyntaxKind.PropertyAccessExpression: {
+      return {
+        type: 'PropertyAccessExpression',
+        expression: toExpressionNode(expression.getExpression(), optionalParams),
+        name: expression.getName(),
+      };
     }
     case SyntaxKind.NullKeyword: {
       return { type: 'Const', value: null };
@@ -87,9 +68,9 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
     }
     case SyntaxKind.NewExpression: {
       return {
-        type: 'NewObject',
-        class: expression.getExpression().getText(),
-        args: expression.getArguments().map((arg: any) => toExpressionNode(arg, optionalParams)),
+        type: 'NewExpression',
+        expression: expression.getExpression().getText(),
+        arguments: expression.getArguments().map((arg: any) => toExpressionNode(arg, optionalParams)),
       };
     }
     case SyntaxKind.TemplateExpression: {
@@ -105,9 +86,8 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
         }
 
         parts.push({
-          type: 'Var',
+          type: 'Identifier',
           name: match[1].trim(),
-          ...(optionalParams.has(match[1].trim()) ? { optional: true } : {}),
         });
         lastIndex = match.index + match[0].length;
       }
@@ -116,7 +96,7 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
         parts.push({ type: 'Const', value: inner.slice(lastIndex) });
       }
 
-      return { type: 'TemplateString', parts };
+      return { type: 'TemplateExpression', parts };
     }
     case SyntaxKind.NoSubstitutionTemplateLiteral: {
       return { type: 'Const', value: expression.getText().slice(1, -1) };
@@ -150,10 +130,36 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
   }
 
   if (statement.getKind() === SyntaxKind.IfStatement) {
+    const elseStatement = statement.getElseStatement();
+    const thenStatements = statement.getThenStatement()?.getKind() === SyntaxKind.Block
+      ? statement.getThenStatement().getStatements().map((child: any) => toStatementNode(child, optionalParams, functionDeclaration))
+      : [toStatementNode(statement.getThenStatement(), optionalParams, functionDeclaration)];
+    const elseStatements = elseStatement?.getKind() === SyntaxKind.Block
+      ? elseStatement.getStatements().map((child: any) => toStatementNode(child, optionalParams, functionDeclaration))
+      : elseStatement
+        ? [toStatementNode(elseStatement, optionalParams, functionDeclaration)]
+        : [];
+
     return {
-      type: 'Branch',
-      condition: toExpressionNode(statement.getExpression(), optionalParams),
-      then: toStatementNode(statement.getThenStatement(), optionalParams, functionDeclaration),
+      type: 'IfStatement',
+      expression: toExpressionNode(statement.getExpression(), optionalParams),
+      thenStatement: thenStatements,
+      elseStatement: elseStatements,
+    };
+  }
+
+  if (statement.getKind() === SyntaxKind.Block) {
+    const statements = statement.getStatements().map((child: any) => toStatementNode(child, optionalParams, functionDeclaration));
+    return {
+      type: 'Block',
+      body: statements,
+    };
+  }
+
+  if (statement.getKind() === SyntaxKind.ExpressionStatement) {
+    return {
+      type: 'Expression',
+      expression: toExpressionNode(statement.getExpression(), optionalParams),
     };
   }
 
