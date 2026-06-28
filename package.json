@@ -11,5 +11,8 @@
   "volta": {
     "node": "24.12.0",
     "npm": "11.17.0"
+  },
+  "dependencies": {
+    "ts-morph": "^28.0.0"
   }
 }
