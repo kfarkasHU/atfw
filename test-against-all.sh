@@ -10,6 +10,7 @@ INPUT_FILES=(
   test/testfile.ts
   test/import-test.ts
   test/is-nil.ts
+  test/noop.ts
 )
 
 GREEN='\033[0;32m'
