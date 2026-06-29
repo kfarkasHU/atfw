@@ -8,7 +8,9 @@ on:
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message || '', 'chore: release version ') == false }}
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.event.head_commit.message || '', 'chore: release version ')
     runs-on: ubuntu-latest
     permissions:
       contents: write
