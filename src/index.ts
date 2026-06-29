@@ -7,10 +7,11 @@ import { createVitestTests } from './generator/vitest';
 import { createTestCaseSpecification } from './test-case-specification';
 import { createIr } from './ir';
 import { createPath } from './path';
+import { Runner } from './runner.type';
 
 type WriteOptions = {
   debugOutput: boolean;
-  runner: 'jest' | 'vitest';
+  runner: Runner;
 };
 
 export function createTests(
@@ -53,9 +54,9 @@ export function createTests(
     outputFilePath: absoluteOutputPath,
   };
 
-  const testFileContent = options.runner === 'vitest'
-    ? createVitestTests(testCaseSpecification, generatorOptions)
-    : createJestTests(testCaseSpecification, generatorOptions);
+  const testFileContent =
+    options.runner === 'vitest' ? createVitestTests(testCaseSpecification, generatorOptions) :
+    createJestTests(testCaseSpecification, generatorOptions);
 
   const outputDir = path.dirname(absoluteOutputPath);
   mkdirSync(outputDir, { recursive: true });

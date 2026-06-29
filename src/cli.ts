@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { createTests } from './index';
+import { Runner } from './runner.type';
 
 function parseArgs(args: string[]) {
 	const [inputArg, outputArg, ...flags] = args;
 
 	let debugOutput = false;
-	let runner: 'jest' | 'vitest' = 'jest';
+	let runner: Runner = 'jest';
 
 	for (let i = 0; i < flags.length; i += 1) {
 		const flag = flags[i];
@@ -18,7 +19,7 @@ function parseArgs(args: string[]) {
 		if (flag === '--runner' && flags[i + 1]) {
 			const nextValue = flags[i + 1]?.toLowerCase();
 			if (nextValue === 'jest' || nextValue === 'vitest') {
-				runner = nextValue;
+				runner = nextValue as Runner;
 				i += 1;
 			}
 			continue;

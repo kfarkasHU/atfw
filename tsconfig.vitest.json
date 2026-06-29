@@ -5,7 +5,7 @@
   },
   "include": [
     "test/**/*.ts",
-    "generated/**/*.spec.ts"
+    "generated/vitest/**/*.spec.ts"
   ],
   "exclude": [
     "node_modules",
