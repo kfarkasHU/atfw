@@ -1,7 +1,16 @@
 {
   "name": "atfw",
+  "version": "1.0.0",
+  "bin": {
+    "atfw": "dist/src/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "test:jest": "jest --config jest.config.ts",
     "test:vitest": "vitest --config vitest.config.ts run"
   },
