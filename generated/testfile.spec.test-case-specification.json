@@ -1,0 +1,41 @@
+{
+  "function": "test",
+  "cases": [
+    {
+      "id": "C1",
+      "pathId": "P1",
+      "inputs": {
+        "isVisible": false
+      },
+      "expected": {
+        "type": "return",
+        "value": "undefined"
+      }
+    },
+    {
+      "id": "C2",
+      "pathId": "P2",
+      "inputs": {
+        "isVisible": true,
+        "title": "Dr_x"
+      },
+      "expected": {
+        "type": "throw",
+        "message": "Title must be Dr or nil!"
+      }
+    },
+    {
+      "id": "C3",
+      "pathId": "P3",
+      "inputs": {
+        "isVisible": true,
+        "title": "Dr",
+        "name": "name_value"
+      },
+      "expected": {
+        "type": "return",
+        "value": "Dr name_value"
+      }
+    }
+  ]
+}

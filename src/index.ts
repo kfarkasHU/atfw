@@ -1,9 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { createAst } from './ast.js';
-import { createCfg } from './cfg.js';
-import { createIr } from './ir.js';
-import { createPath } from './path.js';
+import { createAst } from './ast';
+import { createCfg } from './cfg';
+import { createTestCaseSpecification } from './test-case-specification';
+import { createIr } from './ir';
+import { createPath } from './path';
 
 type WriteOptions = {
   debugOutput: boolean;
@@ -32,6 +33,7 @@ export function createTests(
         function: 'unknown',
         paths: [],
       };
+  const testCaseSpecification = createTestCaseSpecification(paths);
 
   const outputDir = path.dirname(absoluteOutputPath);
   mkdirSync(outputDir, { recursive: true });
@@ -44,6 +46,7 @@ export function createTests(
     writeFileSync(path.join(outputDir, `${outputFileBase}.ir.json`), JSON.stringify(ir, null, 2), 'utf-8');
     writeFileSync(path.join(outputDir, `${outputFileBase}.cfg.json`), JSON.stringify(cfg, null, 2), 'utf-8');
     writeFileSync(path.join(outputDir, `${outputFileBase}.path.json`), JSON.stringify(paths, null, 2), 'utf-8');
+    writeFileSync(path.join(outputDir, `${outputFileBase}.test-case-specification.json`), JSON.stringify(testCaseSpecification, null, 2), 'utf-8');
   }
 
   return absoluteOutputPath;
