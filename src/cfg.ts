@@ -174,6 +174,7 @@ export function createCfg(ir: any) {
 
   return {
     type: 'CFG',
+    function: ir.name ?? 'unknown',
     entry: entry.id,
     exit: exit.id,
     nodes,

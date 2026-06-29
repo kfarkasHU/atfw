@@ -1,0 +1,145 @@
+{
+  "type": "Paths",
+  "function": "test",
+  "paths": [
+    {
+      "id": "P1",
+      "constraints": [
+        {
+          "condition": "!isVisible",
+          "expr": {
+            "type": "IRUnary",
+            "op": "!",
+            "expr": {
+              "type": "IRVar",
+              "name": "isVisible"
+            }
+          },
+          "value": true
+        }
+      ],
+      "outcome": {
+        "type": "return",
+        "expr": {
+          "type": "IRVar",
+          "name": "undefined"
+        }
+      }
+    },
+    {
+      "id": "P2",
+      "constraints": [
+        {
+          "condition": "!isVisible",
+          "expr": {
+            "type": "IRUnary",
+            "op": "!",
+            "expr": {
+              "type": "IRVar",
+              "name": "isVisible"
+            }
+          },
+          "value": false
+        },
+        {
+          "condition": "title and title !== 'Dr'",
+          "expr": {
+            "type": "IRBinary",
+            "op": "&&",
+            "left": {
+              "type": "IRVar",
+              "name": "title"
+            },
+            "right": {
+              "type": "IRBinary",
+              "op": "!==",
+              "left": {
+                "type": "IRVar",
+                "name": "title"
+              },
+              "right": {
+                "type": "IRConst",
+                "value": "Dr"
+              }
+            }
+          },
+          "value": true
+        }
+      ],
+      "outcome": {
+        "type": "throw",
+        "expr": {
+          "type": "IRNew",
+          "class": "Error",
+          "args": [
+            {
+              "type": "IRConst",
+              "value": "Title must be Dr or nil!"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "P3",
+      "constraints": [
+        {
+          "condition": "!isVisible",
+          "expr": {
+            "type": "IRUnary",
+            "op": "!",
+            "expr": {
+              "type": "IRVar",
+              "name": "isVisible"
+            }
+          },
+          "value": false
+        },
+        {
+          "condition": "title and title !== 'Dr'",
+          "expr": {
+            "type": "IRBinary",
+            "op": "&&",
+            "left": {
+              "type": "IRVar",
+              "name": "title"
+            },
+            "right": {
+              "type": "IRBinary",
+              "op": "!==",
+              "left": {
+                "type": "IRVar",
+                "name": "title"
+              },
+              "right": {
+                "type": "IRConst",
+                "value": "Dr"
+              }
+            }
+          },
+          "value": false
+        }
+      ],
+      "outcome": {
+        "type": "return",
+        "expr": {
+          "type": "IRTemplate",
+          "parts": [
+            {
+              "type": "IRVar",
+              "name": "title"
+            },
+            {
+              "type": "IRConst",
+              "value": " "
+            },
+            {
+              "type": "IRVar",
+              "name": "name"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

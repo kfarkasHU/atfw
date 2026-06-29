@@ -1,5 +1,6 @@
 {
   "type": "CFG",
+  "function": "test",
   "entry": "N0",
   "exit": "N1",
   "nodes": [
