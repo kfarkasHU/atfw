@@ -3,14 +3,12 @@ name: Publish To GitHub Registry
 on:
   push:
     branches:
-      - master
+      - main
   workflow_dispatch:
 
 jobs:
   publish:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      !startsWith(github.event.head_commit.message || '', 'chore: release version ')
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message || '', 'chore: release version ') == false }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -57,5 +55,5 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm publish --registry=https://npm.pkg.github.com
 
-      - name: Push release commit to master
-        run: git push origin HEAD:master
+      - name: Push release commit to source branch
+        run: git push origin HEAD:${{ github.ref_name }}
