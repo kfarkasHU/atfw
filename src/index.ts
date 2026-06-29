@@ -3,18 +3,20 @@ import path from 'node:path';
 import { createAst } from './ast';
 import { createCfg } from './cfg';
 import { createJestTests } from './generator/jest';
+import { createVitestTests } from './generator/vitest';
 import { createTestCaseSpecification } from './test-case-specification';
 import { createIr } from './ir';
 import { createPath } from './path';
 
 type WriteOptions = {
   debugOutput: boolean;
+  runner: 'jest' | 'vitest';
 };
 
 export function createTests(
   inputFilePath: string,
   outputFilePath: string,
-  options: WriteOptions = { debugOutput: false }
+  options: WriteOptions = { debugOutput: false, runner: 'jest' }
 ): string {
   const absoluteInputPath = path.isAbsolute(inputFilePath)
     ? inputFilePath
@@ -37,16 +39,20 @@ export function createTests(
   const testCaseSpecification = createTestCaseSpecification(paths, {
     params: ir?.params ?? [],
   });
-  const jestContent = createJestTests(testCaseSpecification, {
+  const generatorOptions = {
     functionName: ast?.name ?? 'sut',
     parameterOrder: (ast?.params ?? []).map((param: { name: string }) => param.name),
     sourceFilePath: absoluteInputPath,
     outputFilePath: absoluteOutputPath,
-  });
+  };
+
+  const testFileContent = options.runner === 'vitest'
+    ? createVitestTests(testCaseSpecification, generatorOptions)
+    : createJestTests(testCaseSpecification, generatorOptions);
 
   const outputDir = path.dirname(absoluteOutputPath);
   mkdirSync(outputDir, { recursive: true });
-  writeFileSync(absoluteOutputPath, jestContent, 'utf-8');
+  writeFileSync(absoluteOutputPath, testFileContent, 'utf-8');
 
   if (options.debugOutput) {
     const outputFileBase = path.basename(absoluteOutputPath, path.extname(absoluteOutputPath));

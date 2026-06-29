@@ -1,10 +1,42 @@
 #!/usr/bin/env node
 import { createTests } from './index.js';
 
-const [inputArg, outputArg, debugOutputArg] = process.argv.slice(2);
-const inputFilePath = inputArg ?? 'test/testfile.ts';
-const outputFilePath = outputArg ?? 'generated/testfile.spec.ts';
-const debugOutput = debugOutputArg === '--debug-output';
+function parseArgs(args: string[]) {
+	const [inputArg, outputArg, ...flags] = args;
 
-const writtenFile = createTests(inputFilePath, outputFilePath, { debugOutput });
+	let debugOutput = false;
+	let runner: 'jest' | 'vitest' = 'jest';
+
+	for (let i = 0; i < flags.length; i += 1) {
+		const flag = flags[i];
+
+		if (flag === '--debug-output') {
+			debugOutput = true;
+			continue;
+		}
+
+		if (flag === '--runner' && flags[i + 1]) {
+			const nextValue = flags[i + 1]?.toLowerCase();
+			if (nextValue === 'jest' || nextValue === 'vitest') {
+				runner = nextValue;
+				i += 1;
+			}
+			continue;
+		}
+	}
+
+	return {
+		inputFilePath: inputArg,
+		outputFilePath: outputArg,
+		debugOutput,
+		runner,
+	};
+}
+
+const { inputFilePath, outputFilePath, debugOutput, runner } = parseArgs(process.argv.slice(2));
+
+if (!inputFilePath) throw new Error('Input file path is required');
+if (!outputFilePath) throw new Error('Output file path is required');
+
+const writtenFile = createTests(inputFilePath, outputFilePath, { debugOutput, runner });
 debugOutput && console.log(writtenFile);
