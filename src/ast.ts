@@ -1,5 +1,10 @@
 import { Project, SyntaxKind } from 'ts-morph';
 
+type ImportNode = {
+  module: string;
+  names: string[];
+};
+
 function stringValue(node: any): string {
   return node?.getText?.() ?? '';
 }
@@ -41,6 +46,21 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
         operator,
         left: toExpressionNode(left, optionalParams),
         right: toExpressionNode(right, optionalParams),
+      };
+    }
+    case SyntaxKind.ConditionalExpression: {
+      return {
+        type: 'ConditionalExpression',
+        condition: toExpressionNode(expression.getCondition(), optionalParams),
+        whenTrue: toExpressionNode(expression.getWhenTrue(), optionalParams),
+        whenFalse: toExpressionNode(expression.getWhenFalse(), optionalParams),
+      };
+    }
+    case SyntaxKind.CallExpression: {
+      return {
+        type: 'CallExpression',
+        expression: toExpressionNode(expression.getExpression(), optionalParams),
+        arguments: expression.getArguments().map((arg: any) => toExpressionNode(arg, optionalParams)),
       };
     }
     case SyntaxKind.ParenthesizedExpression: {
@@ -174,7 +194,21 @@ function toParameterNode(parameter: any): any {
   };
 }
 
-function toFunctionNode(functionDeclaration: any): any {
+function toImportNode(importDeclaration: any): ImportNode | null {
+  const moduleSpecifier = importDeclaration.getModuleSpecifierValue?.();
+  const namedImports = importDeclaration.getNamedImports?.() ?? [];
+
+  if (!moduleSpecifier || !namedImports.length) {
+    return null;
+  }
+
+  return {
+    module: moduleSpecifier,
+    names: namedImports.map((namedImport: any) => namedImport.getName()),
+  };
+}
+
+function toFunctionNode(functionDeclaration: any, imports: ImportNode[]): any {
   const bodyStatements = functionDeclaration.getBody()?.getStatements?.() ?? [];
   const optionalParams = new Set<string>(
     functionDeclaration.getParameters()
@@ -187,6 +221,7 @@ function toFunctionNode(functionDeclaration: any): any {
     name: functionDeclaration.getName(),
     exported: functionDeclaration.hasModifier(SyntaxKind.ExportKeyword),
     params: functionDeclaration.getParameters().map((parameter: any) => toParameterNode(parameter)),
+    imports,
     body: bodyStatements.map((statement: any) => toStatementNode(statement, optionalParams, functionDeclaration)),
   };
 }
@@ -196,6 +231,7 @@ export function createAst(inputFilePath: string): any {
   const sourceFile = project.addSourceFileAtPath(inputFilePath);
   const exportedDeclarations = sourceFile.getExportedDeclarations();
   const exportedFunctions: any[] = [];
+  const imports = sourceFile.getImportDeclarations().map((importDeclaration) => toImportNode(importDeclaration)).filter(m => !!m);
 
   for (const declarations of exportedDeclarations.values()) {
     for (const declaration of declarations) {
@@ -205,5 +241,5 @@ export function createAst(inputFilePath: string): any {
     }
   }
 
-  return exportedFunctions.map((functionDeclaration) => toFunctionNode(functionDeclaration));
+  return exportedFunctions.map((functionDeclaration) => toFunctionNode(functionDeclaration, imports));
 }

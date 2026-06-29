@@ -11,13 +11,24 @@ type VitestGeneratorOptions = {
 };
 
 function stripExtension(filePath: string): string {
-  return filePath.replace(/\.[^.]+$/, '');
+  const extension = path.extname(filePath);
+  return extension ? filePath.slice(0, -extension.length) : filePath;
 }
 
 function toImportSpecifier(outputFilePath: string, sourceFilePath: string): string {
   const fromDir = path.dirname(outputFilePath);
   const relativePath = path.relative(fromDir, sourceFilePath);
   const normalized = stripExtension(relativePath).split(path.sep).join('/');
+
+  if (normalized.startsWith('.')) return normalized;
+  return `./${normalized}`;
+}
+
+function resolveImportSpecifier(moduleSpecifier: string, sourceFilePath: string, outputFilePath: string): string {
+  const sourceDir = path.dirname(sourceFilePath);
+  const fromDir = path.dirname(outputFilePath);
+  const rebasedPath = path.join(path.relative(fromDir, sourceDir), moduleSpecifier);
+  const normalized = stripExtension(rebasedPath).split(path.sep).join('/');
 
   if (normalized.startsWith('.')) return normalized;
   return `./${normalized}`;
@@ -79,6 +90,64 @@ function toOutcomeMessage(testCase: TestCaseSpecification['cases'][number]): str
   return `should return ${stableSerialize(testCase.expected.value)}`;
 }
 
+function buildMockModuleDeclarations(
+  specs: TestCaseSpecification[],
+  options: VitestGeneratorOptions,
+): string[] {
+  const modules = new Map<string, Set<string>>();
+
+  for (const spec of specs) {
+    for (const importSpec of spec.imports ?? []) {
+      const resolvedSpecifier = resolveImportSpecifier(importSpec.module, options.sourceFilePath, options.outputFilePath);
+      const names = modules.get(resolvedSpecifier) ?? new Set<string>();
+
+      for (const name of importSpec.names ?? []) {
+        names.add(name);
+      }
+
+      modules.set(resolvedSpecifier, names);
+    }
+  }
+
+  return Array.from(modules.entries()).map(([moduleSpecifier, names]) => {
+    const factoryEntries = Array.from(names).map((name) => `${name}: vi.fn()`);
+    return `vi.mock(${JSON.stringify(moduleSpecifier)}, () => ({ ${factoryEntries.join(', ')} }));`;
+  });
+}
+
+function buildMockImportStatements(
+  specs: TestCaseSpecification[],
+  options: VitestGeneratorOptions,
+): string[] {
+  const modules = new Map<string, Set<string>>();
+
+  for (const spec of specs) {
+    for (const importSpec of spec.imports ?? []) {
+      const resolvedSpecifier = resolveImportSpecifier(importSpec.module, options.sourceFilePath, options.outputFilePath);
+      const names = modules.get(resolvedSpecifier) ?? new Set<string>();
+
+      for (const name of importSpec.names ?? []) {
+        names.add(name);
+      }
+
+      modules.set(resolvedSpecifier, names);
+    }
+  }
+
+  return Array.from(modules.entries()).map(([moduleSpecifier, names]) => `import { ${Array.from(names).join(', ')} } from ${JSON.stringify(moduleSpecifier)};`);
+}
+
+function buildBeforeEachBlock(mocks: Record<string, unknown> | undefined): string {
+  const entries = Object.entries(mocks ?? {});
+  if (!entries.length) return '';
+
+  return [
+    '        beforeEach(() => {',
+    ...entries.map(([name, value]) => `          vi.mocked(${name}).mockReturnValue(${renderJsValue(value)});`),
+    '        });',
+  ].join('\n');
+}
+
 function buildSuite(spec: TestCaseSpecification, callableName: string, parameterOrder: string[]): string {
   const testBlocks = (spec.cases ?? []).map((testCase) => {
     const args = parameterOrder
@@ -88,34 +157,40 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
     const outcomeMessage = toOutcomeMessage(testCase);
 
     if (testCase.expected.type === 'throw') {
+      const beforeEachBlock = buildBeforeEachBlock(testCase.mocks);
       return [
         `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
+        beforeEachBlock,
         `        it(${JSON.stringify(outcomeMessage)}, () => {`,
         `          expect(() => ${callableName}(${args})).toThrow(${JSON.stringify(testCase.expected.message ?? '')});`,
         '        });',
         '      });',
-      ].join('\n');
+      ].filter(Boolean).join('\n');
     }
 
     if (testCase.expected.value === 'undefined') {
+      const beforeEachBlock = buildBeforeEachBlock(testCase.mocks);
       return [
         `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
+        beforeEachBlock,
         `        it(${JSON.stringify(outcomeMessage)}, () => {`,
         `          const result = ${callableName}(${args});`,
         '          expect(result).toBeUndefined();',
         '        });',
         '      });',
-      ].join('\n');
+      ].filter(Boolean).join('\n');
     }
 
+    const beforeEachBlock = buildBeforeEachBlock(testCase.mocks);
     return [
       `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
+      beforeEachBlock,
       `        it(${JSON.stringify(outcomeMessage)}, () => {`,
       `          const result = ${callableName}(${args});`,
       `          expect(result).toEqual(${renderJsValue(testCase.expected.value)});`,
       '        });',
       '      });',
-    ].join('\n');
+    ].filter(Boolean).join('\n');
   });
 
   const body = testBlocks.length
@@ -141,6 +216,8 @@ export function createVitestTests(spec: TestCaseSpecification | TestCaseSpecific
     : specs.map((item) => item.function).filter(Boolean);
 
   const importList = functionNames.length ? functionNames : [options.functionName];
+  const mockImports = buildMockImportStatements(specs, options);
+  const mockDeclarations = buildMockModuleDeclarations(specs, options);
 
   const suites = specs.map((singleSpec) => {
     const callableName = singleSpec.function ?? options.functionName;
@@ -150,8 +227,10 @@ export function createVitestTests(spec: TestCaseSpecification | TestCaseSpecific
   });
 
   return [
-    `import { describe, expect, it } from 'vitest';`,
+    `import { beforeEach, describe, expect, it, vi } from 'vitest';`,
     `import { ${importList.join(', ')} } from ${JSON.stringify(importSpecifier)};`,
+    ...mockImports,
+    ...mockDeclarations,
     '',
     suites.join('\n\n'),
     '',

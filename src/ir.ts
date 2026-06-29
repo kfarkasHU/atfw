@@ -13,11 +13,24 @@ function toIrExpression(node: any): any {
         left: toIrExpression(node.left),
         right: toIrExpression(node.right),
       };
+    case 'ConditionalExpression':
+      return {
+        type: 'IRConditional',
+        condition: toIrExpression(node.condition),
+        whenTrue: toIrExpression(node.whenTrue),
+        whenFalse: toIrExpression(node.whenFalse),
+      };
     case 'PropertyAccessExpression':
       return {
         type: 'IRProperty',
         object: toIrExpression(node.expression),
         property: node.name,
+      };
+    case 'CallExpression':
+      return {
+        type: 'IRCall',
+        callee: toIrExpression(node.expression),
+        args: (node.arguments ?? []).map((arg: any) => toIrExpression(arg)),
       };
     case 'PrefixUnaryExpression':
       return {
@@ -82,6 +95,7 @@ export function createIr(ast: any): any {
       type: 'IRFunction',
       name: item.name,
       params: item.params?.map((param: any) => param.name) ?? [],
+      imports: item.imports ?? [],
       body: (item.body ?? []).map((statement: any) => toIrStatement(statement)),
     }));
 }

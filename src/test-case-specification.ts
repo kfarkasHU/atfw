@@ -23,6 +23,7 @@ type PathItem = {
 type PathInput = {
   type: string;
   function: string;
+  imports?: Array<{ module: string; names: string[] }>;
   paths: PathItem[];
 };
 
@@ -30,6 +31,7 @@ type ConstraintsCase = {
   id: string;
   pathId: string;
   inputs: Record<string, unknown>;
+  mocks?: Record<string, unknown>;
   expected: {
     type: 'return' | 'throw';
     value?: unknown;
@@ -39,6 +41,7 @@ type ConstraintsCase = {
 
 type ConstraintsOutput = {
   function: string;
+  imports: Array<{ module: string; names: string[] }>;
   cases: ConstraintsCase[];
 };
 
@@ -214,6 +217,103 @@ function alternativeValue(current: unknown): unknown {
   return 'x';
 }
 
+function getCalleeName(expr: IrExpr | null | undefined): string | null {
+  if (!expr) return null;
+  if (expr.type === 'IRVar') return expr.name;
+  if (expr.type === 'IRCall') {
+    return getCalleeName(expr.callee);
+  }
+  return null;
+}
+
+function evaluateExpr(
+  expr: IrExpr | null | undefined,
+  inputs: Record<string, unknown>,
+  mocks: Record<string, unknown>,
+): unknown {
+  if (!expr) return null;
+
+  if (expr.type === 'IRConst') return expr.value;
+
+  if (expr.type === 'IRVar') {
+    if (expr.name === 'undefined') return 'undefined';
+    if (expr.name in inputs) return inputs[expr.name];
+    if (expr.name in mocks) return mocks[expr.name];
+    return expr.name;
+  }
+
+  if (expr.type === 'IRCall') {
+    const calleeName = getCalleeName(expr.callee);
+    if (calleeName && calleeName in mocks) {
+      return mocks[calleeName];
+    }
+    return null;
+  }
+
+  if (expr.type === 'IRConditional') {
+    const conditionValue = evaluateExpr(expr.condition, inputs, mocks);
+    if (conditionValue === true) {
+      return evaluateExpr(expr.whenTrue, inputs, mocks);
+    }
+    if (conditionValue === false) {
+      return evaluateExpr(expr.whenFalse, inputs, mocks);
+    }
+    return null;
+  }
+
+  if (expr.type === 'IRTemplate') {
+    const parts = (expr.parts ?? []).map((part: IrExpr) => {
+      if (part.type === 'IRConst') return String(part.value ?? '');
+      if (part.type === 'IRVar') return String(inputs[part.name] ?? '');
+      return '';
+    });
+
+    return parts.join('');
+  }
+
+  if (expr.type === 'IRNew' && expr.class === 'Error') {
+    const firstArg = expr.args?.[0];
+    if (firstArg?.type === 'IRConst') return String(firstArg.value ?? '');
+    return 'Error';
+  }
+
+  return null;
+}
+
+function expandExpectedOutcomes(
+  expr: IrExpr | null | undefined,
+  inputs: Record<string, unknown>,
+  importedNames: Set<string>,
+  mocks: Record<string, unknown> = {},
+): Array<{ value: unknown; mocks: Record<string, unknown> }> {
+  if (!expr) {
+    return [{ value: null, mocks }];
+  }
+
+  if (expr.type === 'IRConditional') {
+    const calleeName = getCalleeName(expr.condition);
+    if (calleeName && importedNames.has(calleeName)) {
+      return [
+        ...expandExpectedOutcomes(expr.whenTrue, inputs, importedNames, { ...mocks, [calleeName]: true }),
+        ...expandExpectedOutcomes(expr.whenFalse, inputs, importedNames, { ...mocks, [calleeName]: false }),
+      ];
+    }
+
+    const conditionValue = evaluateExpr(expr.condition, inputs, mocks);
+    if (conditionValue === true) {
+      return expandExpectedOutcomes(expr.whenTrue, inputs, importedNames, mocks);
+    }
+
+    if (conditionValue === false) {
+      return expandExpectedOutcomes(expr.whenFalse, inputs, importedNames, mocks);
+    }
+
+    return [{ value: evaluateExpr(expr, inputs, mocks), mocks }];
+  }
+
+  return [{ value: evaluateExpr(expr, inputs, mocks), mocks }];
+}
+
 function satisfyExpr(
   expr: IrExpr | null | undefined,
   expected: boolean,
@@ -323,39 +423,15 @@ function satisfyExpr(
   }
 }
 
-function evaluateExpr(expr: IrExpr | null | undefined, inputs: Record<string, unknown>): unknown {
-  if (!expr) return null;
-
-  if (expr.type === 'IRConst') return expr.value;
-
-  if (expr.type === 'IRVar') {
-    if (expr.name === 'undefined') return 'undefined';
-    if (expr.name in inputs) return inputs[expr.name];
-    return expr.name;
-  }
-
-  if (expr.type === 'IRTemplate') {
-    const parts = (expr.parts ?? []).map((part: IrExpr) => {
-      if (part.type === 'IRConst') return String(part.value ?? '');
-      if (part.type === 'IRVar') return String(inputs[part.name] ?? '');
-      return '';
-    });
-
-    return parts.join('');
-  }
-
-  if (expr.type === 'IRNew' && expr.class === 'Error') {
-    const firstArg = expr.args?.[0];
-    if (firstArg?.type === 'IRConst') return String(firstArg.value ?? '');
-    return 'Error';
-  }
-
-  return null;
-}
-
-function buildCase(path: PathItem, index: number, params: ParamMeta[]): ConstraintsCase {
+function buildCase(
+  path: PathItem,
+  index: number,
+  params: ParamMeta[],
+  imports: Array<{ module: string; names: string[] }>,
+): ConstraintsCase[] {
   const inputs: Record<string, unknown> = {};
   const typeMap: Record<string, InferredType> = {};
+  const importedNames = new Set<string>(imports.flatMap((item) => item.names));
 
   for (const constraint of path.constraints) {
     collectExprTypes(constraint.expr, typeMap);
@@ -369,27 +445,23 @@ function buildCase(path: PathItem, index: number, params: ParamMeta[]): Constrai
   fillMissingInputs(inputs, typeMap);
   fillMissingParams(inputs, params, typeMap);
 
-  if (path.outcome.type === 'throw') {
-    return {
-      id: `C${index + 1}`,
-      pathId: path.id,
-      inputs,
-      expected: {
-        type: 'throw',
-        message: String(evaluateExpr(path.outcome.expr, inputs) ?? ''),
-      },
-    };
-  }
+  const expandedOutcomes = expandExpectedOutcomes(path.outcome.expr, inputs, importedNames);
 
-  return {
-    id: `C${index + 1}`,
+  return expandedOutcomes.map((expandedOutcome, outcomeIndex) => ({
+    id: `C${index + 1}.${outcomeIndex + 1}`,
     pathId: path.id,
     inputs,
-    expected: {
-      type: 'return',
-      value: evaluateExpr(path.outcome.expr, inputs),
-    },
-  };
+    mocks: expandedOutcome.mocks,
+    expected: path.outcome.type === 'throw'
+      ? {
+          type: 'throw' as const,
+          message: String(expandedOutcome.value ?? ''),
+        }
+      : {
+          type: 'return' as const,
+          value: expandedOutcome.value,
+        },
+  }));
 }
 
 export function createTestCaseSpecification(
@@ -405,10 +477,12 @@ export function createTestCaseSpecification(
     .map((singlePathResult) => {
       const paramsFromMap = options.paramsByFunction?.[singlePathResult.function ?? 'unknown'] ?? [];
       const params = normalizeParams(paramsFromMap.length ? paramsFromMap : (options.params ?? []));
+      const imports = singlePathResult.imports ?? [];
 
       return {
         function: singlePathResult.function ?? 'unknown',
-        cases: (singlePathResult.paths ?? []).map((path, index) => buildCase(path, index, params)),
+        imports,
+        cases: (singlePathResult.paths ?? []).flatMap((path, index) => buildCase(path, index, params, imports)),
       };
     });
 }

@@ -12,9 +12,12 @@ type CfgEdge = {
   label?: 'true' | 'false';
 };
 
+type Import = { module: string; names: string[] };
+
 type CfgInput = {
   type: string;
   function?: string;
+  imports?: Array<Import>;
   entry: string;
   exit: string;
   nodes: CfgNode[];
@@ -38,11 +41,18 @@ type PathItem = {
   outcome: PathOutcome;
 };
 
+interface SinglePath {
+  type: 'Paths',
+  function: string,
+  imports: Array<Import>,
+  paths: PathItem[];
+}
+
 function getOutgoing(edges: CfgEdge[], nodeId: string): CfgEdge[] {
   return edges.filter((edge) => edge.from === nodeId);
 }
 
-function createSinglePath(cfg: CfgInput): { type: 'Paths'; function: string; paths: PathItem[] } {
+function createSinglePath(cfg: CfgInput): SinglePath {
   const nodeById = new Map(cfg.nodes.map((node) => [node.id, node]));
   const paths: PathItem[] = [];
 
@@ -114,11 +124,12 @@ function createSinglePath(cfg: CfgInput): { type: 'Paths'; function: string; pat
   return {
     type: 'Paths',
     function: cfg.function ?? 'unknown',
+    imports: cfg.imports ?? [],
     paths,
   };
 }
 
-export function createPath(cfg: CfgInput | CfgInput[]): Array<{ type: 'Paths'; function: string; paths: PathItem[] }> {
+export function createPath(cfg: CfgInput | CfgInput[]): Array<SinglePath> {
   if (!cfg) return [];
 
   const cfgList = Array.isArray(cfg) ? cfg : [cfg];

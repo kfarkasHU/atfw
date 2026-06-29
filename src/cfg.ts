@@ -180,6 +180,7 @@ export function createCfg(ir: any) {
       return {
         type: 'CFG',
         function: item.name ?? 'unknown',
+        imports: item.imports ?? [],
         entry: entry.id,
         exit: exit.id,
         nodes,
