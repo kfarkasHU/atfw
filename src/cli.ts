@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createTests } from './index.js';
+import { createTests } from './index';
 
 function parseArgs(args: string[]) {
 	const [inputArg, outputArg, ...flags] = args;
