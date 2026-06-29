@@ -1,6 +1,6 @@
 {
-  "name": "atfw",
-  "version": "1.0.0",
+  "name": "@kfarkasHU/atfw",
+  "version": "0.1.0",
   "bin": {
     "atfw": "dist/src/cli.js"
   },
@@ -10,11 +10,13 @@
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsc -p tsconfig.json",
+    "version:commit": "commit-and-tag-version --skip.tag",
     "prepare": "npm run build",
     "test:jest": "jest --config jest.config.ts",
     "test:vitest": "vitest --config vitest.config.ts run"
   },
   "devDependencies": {
+    "commit-and-tag-version": "^12.6.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.0.1",
     "jest": "^30.0.5",

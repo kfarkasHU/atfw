@@ -1,0 +1,58 @@
+name: Publish To GitHub Registry
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Volta
+        uses: volta-cli/action@v4
+
+      - name: Configure npm for GitHub Packages
+        env:
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "@${GITHUB_OWNER}:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit version and changelog (no tag)
+        run: npm run version:commit
+
+      - name: Normalize release commit message
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          git commit --amend -m "chore: release version ${VERSION}"
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish --registry=https://npm.pkg.github.com
+
+      - name: Push release commit to master
+        run: git push origin HEAD:master
