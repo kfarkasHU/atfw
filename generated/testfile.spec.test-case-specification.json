@@ -5,7 +5,9 @@
       "id": "C1",
       "pathId": "P1",
       "inputs": {
-        "isVisible": false
+        "isVisible": false,
+        "name": "name_value",
+        "title": "title_value"
       },
       "expected": {
         "type": "return",
@@ -17,7 +19,8 @@
       "pathId": "P2",
       "inputs": {
         "isVisible": true,
-        "title": "Dr_x"
+        "title": "Dr_x",
+        "name": "name_value"
       },
       "expected": {
         "type": "throw",

@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createAst } from './ast';
 import { createCfg } from './cfg';
+import { createJestTests } from './generator/jest';
 import { createTestCaseSpecification } from './test-case-specification';
 import { createIr } from './ir';
 import { createPath } from './path';
@@ -33,11 +34,19 @@ export function createTests(
         function: 'unknown',
         paths: [],
       };
-  const testCaseSpecification = createTestCaseSpecification(paths);
+  const testCaseSpecification = createTestCaseSpecification(paths, {
+    params: ir?.params ?? [],
+  });
+  const jestContent = createJestTests(testCaseSpecification, {
+    functionName: ast?.name ?? 'sut',
+    parameterOrder: (ast?.params ?? []).map((param: { name: string }) => param.name),
+    sourceFilePath: absoluteInputPath,
+    outputFilePath: absoluteOutputPath,
+  });
 
   const outputDir = path.dirname(absoluteOutputPath);
   mkdirSync(outputDir, { recursive: true });
-  writeFileSync(absoluteOutputPath, JSON.stringify(cfg, null, 2), 'utf-8');
+  writeFileSync(absoluteOutputPath, jestContent, 'utf-8');
 
   if (options.debugOutput) {
     const outputFileBase = path.basename(absoluteOutputPath, path.extname(absoluteOutputPath));

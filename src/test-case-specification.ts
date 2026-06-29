@@ -42,6 +42,10 @@ type ConstraintsOutput = {
   cases: ConstraintsCase[];
 };
 
+type TestCaseSpecificationOptions = {
+  params?: string[];
+};
+
 type InferredType = 'boolean' | 'number' | 'string' | 'unknown';
 
 function assignVar(inputs: Record<string, unknown>, name: string, value: unknown, overwrite = false) {
@@ -111,6 +115,15 @@ function fillMissingInputs(inputs: Record<string, unknown>, typeMap: Record<stri
   for (const [name, inferredType] of Object.entries(typeMap)) {
     if (!(name in inputs)) {
       inputs[name] = defaultValueForVar(name, inferredType);
+    }
+  }
+}
+
+function fillMissingParams(inputs: Record<string, unknown>, params: string[], typeMap: Record<string, InferredType>) {
+  for (const param of params) {
+    if (!(param in inputs)) {
+      const inferredType = typeMap[param] ?? 'unknown';
+      inputs[param] = defaultValueForVar(param, inferredType);
     }
   }
 }
@@ -211,7 +224,7 @@ function evaluateExpr(expr: IrExpr | null | undefined, inputs: Record<string, un
   return null;
 }
 
-function buildCase(path: PathItem, index: number): ConstraintsCase {
+function buildCase(path: PathItem, index: number, params: string[]): ConstraintsCase {
   const inputs: Record<string, unknown> = {};
   const typeMap: Record<string, InferredType> = {};
 
@@ -225,6 +238,7 @@ function buildCase(path: PathItem, index: number): ConstraintsCase {
   }
 
   fillMissingInputs(inputs, typeMap);
+  fillMissingParams(inputs, params, typeMap);
 
   if (path.outcome.type === 'throw') {
     return {
@@ -249,7 +263,10 @@ function buildCase(path: PathItem, index: number): ConstraintsCase {
   };
 }
 
-export function createTestCaseSpecification(pathResult: PathInput): ConstraintsOutput {
+export function createTestCaseSpecification(
+  pathResult: PathInput,
+  options: TestCaseSpecificationOptions = {},
+): ConstraintsOutput {
   if (!pathResult) {
     return {
       function: 'unknown',
@@ -257,8 +274,10 @@ export function createTestCaseSpecification(pathResult: PathInput): ConstraintsO
     };
   }
 
+  const params = options.params ?? [];
+
   return {
     function: pathResult.function ?? 'unknown',
-    cases: (pathResult.paths ?? []).map((path, index) => buildCase(path, index)),
+    cases: (pathResult.paths ?? []).map((path, index) => buildCase(path, index, params)),
   };
 }
