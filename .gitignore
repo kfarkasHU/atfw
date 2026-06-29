@@ -1,3 +1,9 @@
+#repo
+generated
+
+# OS
+.DS_Store
+
+# tech
 node_modules
 dist
-.DS_Store
