@@ -94,7 +94,7 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
     case SyntaxKind.NoSubstitutionTemplateLiteral: {
       return { type: 'Const', value: expression.getText().slice(1, -1) };
     }
-    case SyntaxKind.ThisExpression: {
+    case SyntaxKind.ThisKeyword: {
       return { type: 'Identifier', name: 'this' };
     }
     default: {

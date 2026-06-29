@@ -1,20 +1,5 @@
 import path from 'node:path';
-
-type TestCase = {
-  id: string;
-  pathId: string;
-  inputs: Record<string, unknown>;
-  expected: {
-    type: 'return' | 'throw';
-    value?: unknown;
-    message?: string;
-  };
-};
-
-type TestCaseSpecification = {
-  function: string;
-  cases: TestCase[];
-};
+import { TestCaseSpecification } from './model';
 
 type VitestGeneratorOptions = {
   functionName: string;
@@ -46,6 +31,52 @@ function renderJsValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function stableSerialize(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(', ')}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, entryValue]) => `${JSON.stringify(key)}: ${stableSerialize(entryValue)}`);
+
+  return `{${entries.join(', ')}}`;
+}
+
+function toStateMessage(testCase: TestCaseSpecification['cases'][number], parameterOrder: string[]): string {
+  const orderedKeys = parameterOrder.filter((name) => name in testCase.inputs);
+  const otherKeys = Object.keys(testCase.inputs)
+    .filter((name) => !orderedKeys.includes(name))
+    .sort((a, b) => a.localeCompare(b));
+
+  const keys = [...orderedKeys, ...otherKeys];
+  if (!keys.length) {
+    return 'the inputs are defaulted';
+  }
+
+  const parts = keys.map((key) => `${key} is ${stableSerialize(testCase.inputs[key])}`);
+  return parts.join(', ');
+}
+
+function toOutcomeMessage(testCase: TestCaseSpecification['cases'][number]): string {
+  if (testCase.expected.type === 'throw') {
+    if (testCase.expected.message) {
+      return `should throw an error with message ${JSON.stringify(testCase.expected.message)}`;
+    }
+    return 'should throw an error';
+  }
+
+  if (testCase.expected.value === 'undefined') {
+    return 'should return undefined';
+  }
+
+  return `should return ${stableSerialize(testCase.expected.value)}`;
+}
+
 export function createVitestTests(spec: TestCaseSpecification, options: VitestGeneratorOptions): string {
   const importSpecifier = toImportSpecifier(options.outputFilePath, options.sourceFilePath);
   const callableName = options.functionName;
@@ -54,42 +85,54 @@ export function createVitestTests(spec: TestCaseSpecification, options: VitestGe
     const args = options.parameterOrder
       .map((param) => renderJsValue(testCase.inputs[param]))
       .join(', ');
+    const stateMessage = toStateMessage(testCase, options.parameterOrder);
+    const outcomeMessage = toOutcomeMessage(testCase);
 
     if (testCase.expected.type === 'throw') {
       return [
-        `  it(${JSON.stringify(`${testCase.id} (${testCase.pathId}) should throw`)}, () => {`,
-        `    expect(() => ${callableName}(${args})).toThrow(${JSON.stringify(testCase.expected.message ?? '')});`,
-        '  });',
+        `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
+        `        it(${JSON.stringify(outcomeMessage)}, () => {`,
+        `          expect(() => ${callableName}(${args})).toThrow(${JSON.stringify(testCase.expected.message ?? '')});`,
+        '        });',
+        '      });',
       ].join('\n');
     }
 
     if (testCase.expected.value === 'undefined') {
       return [
-        `  it(${JSON.stringify(`${testCase.id} (${testCase.pathId}) should return undefined`)}, () => {`,
-        `    const result = ${callableName}(${args});`,
-        '    expect(result).toBeUndefined();',
-        '  });',
+        `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
+        `        it(${JSON.stringify(outcomeMessage)}, () => {`,
+        `          const result = ${callableName}(${args});`,
+        '          expect(result).toBeUndefined();',
+        '        });',
+        '      });',
       ].join('\n');
     }
 
     return [
-      `  it(${JSON.stringify(`${testCase.id} (${testCase.pathId}) should return expected value`)}, () => {`,
-      `    const result = ${callableName}(${args});`,
-      `    expect(result).toEqual(${renderJsValue(testCase.expected.value)});`,
-      '  });',
+      `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
+      `        it(${JSON.stringify(outcomeMessage)}, () => {`,
+      `          const result = ${callableName}(${args});`,
+      `          expect(result).toEqual(${renderJsValue(testCase.expected.value)});`,
+      '        });',
+      '      });',
     ].join('\n');
   });
 
   const body = testBlocks.length
     ? testBlocks.join('\n\n')
-    : `  it('has no generated cases', () => {\n    expect(true).toBe(true);\n  });`;
+    : `      describe('and no cases are available', () => {\n        it('then it should keep the suite deterministic', () => {\n          expect(true).toBe(true);\n        });\n      });`;
 
   return [
     `import { describe, expect, it } from 'vitest';`,
     `import { ${options.functionName} } from ${JSON.stringify(importSpecifier)};`,
     '',
-    `describe(${JSON.stringify(spec.function ?? options.functionName)}, () => {`,
+    `describe(${JSON.stringify(`${spec.function ?? options.functionName} Specs`)}, () => {`,
+    `  describe('given the test is initialized', () => {`,
+    `    describe(${JSON.stringify(`when I call ${callableName}()`)}, () => {`,
     body,
+    '    });',
+    '  });',
     '});',
     '',
   ].join('\n');
