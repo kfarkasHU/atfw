@@ -1,0 +1,42 @@
+[
+  {
+    "type": "Paths",
+    "function": "toTest",
+    "imports": [
+      {
+        "module": "./import-source",
+        "names": [
+          "toMock"
+        ]
+      }
+    ],
+    "paths": [
+      {
+        "id": "P1",
+        "constraints": [],
+        "outcome": {
+          "type": "return",
+          "expr": {
+            "type": "IRConditional",
+            "condition": {
+              "type": "IRCall",
+              "callee": {
+                "type": "IRVar",
+                "name": "toMock"
+              },
+              "args": []
+            },
+            "whenTrue": {
+              "type": "IRConst",
+              "value": false
+            },
+            "whenFalse": {
+              "type": "IRConst",
+              "value": true
+            }
+          }
+        }
+      }
+    ]
+  }
+]

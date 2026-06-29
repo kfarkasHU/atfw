@@ -1,0 +1,41 @@
+[
+  {
+    "type": "Function",
+    "name": "toTest",
+    "exported": true,
+    "params": [],
+    "imports": [
+      {
+        "module": "./import-source",
+        "names": [
+          "toMock"
+        ]
+      }
+    ],
+    "body": [
+      {
+        "type": "Terminal",
+        "kind": "return",
+        "value": {
+          "type": "ConditionalExpression",
+          "condition": {
+            "type": "CallExpression",
+            "expression": {
+              "type": "Identifier",
+              "name": "toMock"
+            },
+            "arguments": []
+          },
+          "whenTrue": {
+            "type": "Const",
+            "value": false
+          },
+          "whenFalse": {
+            "type": "Const",
+            "value": true
+          }
+        }
+      }
+    ]
+  }
+]

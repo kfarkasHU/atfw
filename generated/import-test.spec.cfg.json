@@ -1,0 +1,62 @@
+[
+  {
+    "type": "CFG",
+    "function": "toTest",
+    "imports": [
+      {
+        "module": "./import-source",
+        "names": [
+          "toMock"
+        ]
+      }
+    ],
+    "entry": "N0",
+    "exit": "N1",
+    "nodes": [
+      {
+        "id": "N0",
+        "type": "Entry"
+      },
+      {
+        "id": "N1",
+        "type": "Exit"
+      },
+      {
+        "id": "N2",
+        "type": "Return",
+        "value": {
+          "text": "value",
+          "expr": {
+            "type": "IRConditional",
+            "condition": {
+              "type": "IRCall",
+              "callee": {
+                "type": "IRVar",
+                "name": "toMock"
+              },
+              "args": []
+            },
+            "whenTrue": {
+              "type": "IRConst",
+              "value": false
+            },
+            "whenFalse": {
+              "type": "IRConst",
+              "value": true
+            }
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "N0",
+        "to": "N2"
+      },
+      {
+        "from": "N2",
+        "to": "N1"
+      }
+    ]
+  }
+]
