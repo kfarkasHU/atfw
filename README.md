@@ -4,7 +4,7 @@ A CLI + lib to generate your unit tests for Typescript apps.
 
 **No AI. No slop.**
 
-Just a tools.
+Just a tool.
 
 ```
 npm run dev -- test/testfile.ts generated/testfile.spec.ts --debug-output --runner jest
