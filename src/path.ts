@@ -42,15 +42,7 @@ function getOutgoing(edges: CfgEdge[], nodeId: string): CfgEdge[] {
   return edges.filter((edge) => edge.from === nodeId);
 }
 
-export function createPath(cfg: CfgInput): { type: 'Paths'; function: string; paths: PathItem[] } {
-  if (!cfg) {
-    return {
-      type: 'Paths',
-      function: 'unknown',
-      paths: [],
-    };
-  }
-
+function createSinglePath(cfg: CfgInput): { type: 'Paths'; function: string; paths: PathItem[] } {
   const nodeById = new Map(cfg.nodes.map((node) => [node.id, node]));
   const paths: PathItem[] = [];
 
@@ -124,4 +116,14 @@ export function createPath(cfg: CfgInput): { type: 'Paths'; function: string; pa
     function: cfg.function ?? 'unknown',
     paths,
   };
+}
+
+export function createPath(cfg: CfgInput | CfgInput[]): Array<{ type: 'Paths'; function: string; paths: PathItem[] }> {
+  if (!cfg) return [];
+
+  const cfgList = Array.isArray(cfg) ? cfg : [cfg];
+
+  return cfgList
+    .filter(Boolean)
+    .map((item) => createSinglePath(item));
 }

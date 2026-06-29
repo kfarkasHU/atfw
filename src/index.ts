@@ -27,21 +27,28 @@ export function createTests(
     : path.resolve(process.cwd(), outputFilePath);
 
   const ast = createAst(absoluteInputPath);
-  const ir = createIr(ast);
+  const astFunctions = Array.isArray(ast) ? ast : [];
+  const paramsByFunction = astFunctions.reduce((accumulator: Record<string, any[]>, item: any) => {
+    accumulator[item.name] = item.params ?? [];
+    return accumulator;
+  }, {});
+
+  const ir = createIr(astFunctions);
   const cfg = createCfg(ir);
-  const paths = cfg
-    ? createPath(cfg)
-    : {
-        type: 'Paths' as const,
-        function: 'unknown',
-        paths: [],
-      };
-  const testCaseSpecification = createTestCaseSpecification(paths, {
-    params: ast?.params ?? [],
-  });
+  const paths = createPath(cfg);
+  const testCaseSpecification = createTestCaseSpecification(paths, { paramsByFunction });
+
+  const functionNames = astFunctions.map((item: any) => item.name).filter(Boolean);
+  const parameterOrderByFunction = astFunctions.reduce((accumulator: Record<string, string[]>, item: any) => {
+    accumulator[item.name] = (item.params ?? []).map((param: { name: string }) => param.name);
+    return accumulator;
+  }, {});
+
   const generatorOptions = {
-    functionName: ast?.name ?? 'sut',
-    parameterOrder: (ast?.params ?? []).map((param: { name: string }) => param.name),
+    functionName: functionNames[0] ?? 'sut',
+    parameterOrder: parameterOrderByFunction[functionNames[0]] ?? [],
+    functionNames,
+    parameterOrderByFunction,
     sourceFilePath: absoluteInputPath,
     outputFilePath: absoluteOutputPath,
   };

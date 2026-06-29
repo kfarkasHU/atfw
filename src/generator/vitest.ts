@@ -1,9 +1,11 @@
 import path from 'node:path';
-import { TestCaseSpecification } from './model';
+import { TestCaseSpecification, TestCaseSpecifications } from './model';
 
 type VitestGeneratorOptions = {
   functionName: string;
   parameterOrder: string[];
+  functionNames?: string[];
+  parameterOrderByFunction?: Record<string, string[]>;
   sourceFilePath: string;
   outputFilePath: string;
 };
@@ -77,15 +79,12 @@ function toOutcomeMessage(testCase: TestCaseSpecification['cases'][number]): str
   return `should return ${stableSerialize(testCase.expected.value)}`;
 }
 
-export function createVitestTests(spec: TestCaseSpecification, options: VitestGeneratorOptions): string {
-  const importSpecifier = toImportSpecifier(options.outputFilePath, options.sourceFilePath);
-  const callableName = options.functionName;
-
+function buildSuite(spec: TestCaseSpecification, callableName: string, parameterOrder: string[]): string {
   const testBlocks = (spec.cases ?? []).map((testCase) => {
-    const args = options.parameterOrder
+    const args = parameterOrder
       .map((param) => renderJsValue(testCase.inputs[param]))
       .join(', ');
-    const stateMessage = toStateMessage(testCase, options.parameterOrder);
+    const stateMessage = toStateMessage(testCase, parameterOrder);
     const outcomeMessage = toOutcomeMessage(testCase);
 
     if (testCase.expected.type === 'throw') {
@@ -124,16 +123,37 @@ export function createVitestTests(spec: TestCaseSpecification, options: VitestGe
     : `      describe('and no cases are available', () => {\n        it('then it should keep the suite deterministic', () => {\n          expect(true).toBe(true);\n        });\n      });`;
 
   return [
-    `import { describe, expect, it } from 'vitest';`,
-    `import { ${options.functionName} } from ${JSON.stringify(importSpecifier)};`,
-    '',
-    `describe(${JSON.stringify(`${spec.function ?? options.functionName} Specs`)}, () => {`,
+    `describe(${JSON.stringify(`${spec.function ?? callableName}Specs`)}, () => {`,
     `  describe('given the test is initialized', () => {`,
     `    describe(${JSON.stringify(`when I call ${callableName}()`)}, () => {`,
     body,
     '    });',
     '  });',
     '});',
+  ].join('\n');
+}
+
+export function createVitestTests(spec: TestCaseSpecification | TestCaseSpecifications, options: VitestGeneratorOptions): string {
+  const importSpecifier = toImportSpecifier(options.outputFilePath, options.sourceFilePath);
+  const specs = Array.isArray(spec) ? spec : [spec];
+  const functionNames = options.functionNames && options.functionNames.length
+    ? options.functionNames
+    : specs.map((item) => item.function).filter(Boolean);
+
+  const importList = functionNames.length ? functionNames : [options.functionName];
+
+  const suites = specs.map((singleSpec) => {
+    const callableName = singleSpec.function ?? options.functionName;
+    const parameterOrder = options.parameterOrderByFunction?.[callableName] ?? options.parameterOrder;
+
+    return buildSuite(singleSpec, callableName, parameterOrder);
+  });
+
+  return [
+    `import { describe, expect, it } from 'vitest';`,
+    `import { ${importList.join(', ')} } from ${JSON.stringify(importSpecifier)};`,
+    '',
+    suites.join('\n\n'),
     '',
   ].join('\n');
 }

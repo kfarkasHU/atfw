@@ -44,6 +44,7 @@ type ConstraintsOutput = {
 
 type TestCaseSpecificationOptions = {
   params?: Array<string | { name: string; type?: string }>;
+  paramsByFunction?: Record<string, Array<string | { name: string; type?: string }>>;
 };
 
 type InferredType = 'boolean' | 'number' | 'string' | 'object' | 'unknown';
@@ -392,20 +393,22 @@ function buildCase(path: PathItem, index: number, params: ParamMeta[]): Constrai
 }
 
 export function createTestCaseSpecification(
-  pathResult: PathInput,
+  pathResult: PathInput | PathInput[],
   options: TestCaseSpecificationOptions = {},
-): ConstraintsOutput {
-  if (!pathResult) {
-    return {
-      function: 'unknown',
-      cases: [],
-    };
-  }
+): ConstraintsOutput[] {
+  if (!pathResult) return [];
 
-  const params = normalizeParams(options.params ?? []);
+  const pathResults = Array.isArray(pathResult) ? pathResult : [pathResult];
 
-  return {
-    function: pathResult.function ?? 'unknown',
-    cases: (pathResult.paths ?? []).map((path, index) => buildCase(path, index, params)),
-  };
+  return pathResults
+    .filter(Boolean)
+    .map((singlePathResult) => {
+      const paramsFromMap = options.paramsByFunction?.[singlePathResult.function ?? 'unknown'] ?? [];
+      const params = normalizeParams(paramsFromMap.length ? paramsFromMap : (options.params ?? []));
+
+      return {
+        function: singlePathResult.function ?? 'unknown',
+        cases: (singlePathResult.paths ?? []).map((path, index) => buildCase(path, index, params)),
+      };
+    });
 }

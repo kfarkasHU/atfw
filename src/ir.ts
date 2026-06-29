@@ -72,12 +72,16 @@ function toIrStatement(node: any): any {
 }
 
 export function createIr(ast: any): any {
-  if (!ast) return null;
+  if (!ast) return [];
 
-  return {
-    type: 'IRFunction',
-    name: ast.name,
-    params: ast.params?.map((param: any) => param.name) ?? [],
-    body: (ast.body ?? []).map((statement: any) => toIrStatement(statement)),
-  };
+  const astFunctions = Array.isArray(ast) ? ast : [ast];
+
+  return astFunctions
+    .filter(Boolean)
+    .map((item) => ({
+      type: 'IRFunction',
+      name: item.name,
+      params: item.params?.map((param: any) => param.name) ?? [],
+      body: (item.body ?? []).map((statement: any) => toIrStatement(statement)),
+    }));
 }

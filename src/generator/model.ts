@@ -13,3 +13,5 @@ export type TestCaseSpecification = {
   function: string;
   cases: TestCase[];
 };
+
+export type TestCaseSpecifications = TestCaseSpecification[];

@@ -162,22 +162,28 @@ function buildStatements(
 }
 
 export function createCfg(ir: any) {
-  if (!ir) return null;
+  if (!ir) return [];
 
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
+  const irFunctions = Array.isArray(ir) ? ir : [ir];
 
-  const entry = createNode(nodes, 'Entry');
-  const exit = createNode(nodes, 'Exit');
+  return irFunctions
+    .filter(Boolean)
+    .map((item) => {
+      const nodes: Node[] = [];
+      const edges: Edge[] = [];
 
-  buildStatements(ir.body ?? [], entry.id, nodes, edges, exit.id);
+      const entry = createNode(nodes, 'Entry');
+      const exit = createNode(nodes, 'Exit');
 
-  return {
-    type: 'CFG',
-    function: ir.name ?? 'unknown',
-    entry: entry.id,
-    exit: exit.id,
-    nodes,
-    edges,
-  };
+      buildStatements(item.body ?? [], entry.id, nodes, edges, exit.id);
+
+      return {
+        type: 'CFG',
+        function: item.name ?? 'unknown',
+        entry: entry.id,
+        exit: exit.id,
+        nodes,
+        edges,
+      };
+    });
 }

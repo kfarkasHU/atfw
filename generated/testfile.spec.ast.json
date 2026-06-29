@@ -1,81 +1,190 @@
-{
-  "type": "Function",
-  "name": "checkUser",
-  "exported": true,
-  "params": [
-    {
-      "name": "x",
-      "type": "number",
-      "optional": false
-    },
-    {
-      "name": "user",
-      "type": "{ blocked: boolean }",
-      "optional": false
-    }
-  ],
-  "body": [
-    {
-      "type": "IfStatement",
-      "expression": {
-        "type": "BinaryExpression",
-        "operator": ">",
-        "left": {
-          "type": "Identifier",
-          "name": "x"
-        },
-        "right": {
-          "type": "Const",
-          "value": 10
-        }
+[
+  {
+    "type": "Function",
+    "name": "test",
+    "exported": true,
+    "params": [
+      {
+        "name": "isVisible",
+        "type": "boolean",
+        "optional": false
       },
-      "thenStatement": [
-        {
-          "type": "Terminal",
-          "kind": "return",
-          "value": {
-            "type": "Const",
-            "value": "A"
-          }
-        }
-      ],
-      "elseStatement": []
-    },
-    {
-      "type": "IfStatement",
-      "expression": {
-        "type": "PropertyAccessExpression",
-        "expression": {
-          "type": "Identifier",
-          "name": "user"
-        },
-        "name": "blocked"
+      {
+        "name": "name",
+        "type": "string",
+        "optional": false
       },
-      "thenStatement": [
-        {
-          "type": "Terminal",
-          "kind": "throw",
-          "error": {
-            "type": "NewExpression",
-            "expression": "Error",
-            "arguments": [
-              {
-                "type": "Const",
-                "value": "blocked"
-              }
-            ]
-          }
-        }
-      ],
-      "elseStatement": []
-    },
-    {
-      "type": "Terminal",
-      "kind": "return",
-      "value": {
-        "type": "Const",
-        "value": "B"
+      {
+        "name": "title",
+        "type": "string?",
+        "optional": true
       }
-    }
-  ]
-}
+    ],
+    "body": [
+      {
+        "type": "IfStatement",
+        "expression": {
+          "type": "PrefixUnaryExpression",
+          "operator": "!",
+          "operand": {
+            "type": "Identifier",
+            "name": "isVisible"
+          }
+        },
+        "thenStatement": [
+          {
+            "type": "Terminal",
+            "kind": "return",
+            "value": {
+              "type": "Identifier",
+              "name": "undefined"
+            }
+          }
+        ],
+        "elseStatement": []
+      },
+      {
+        "type": "IfStatement",
+        "expression": {
+          "type": "BinaryExpression",
+          "operator": "&&",
+          "left": {
+            "type": "Identifier",
+            "name": "title"
+          },
+          "right": {
+            "type": "BinaryExpression",
+            "operator": "!==",
+            "left": {
+              "type": "Identifier",
+              "name": "title"
+            },
+            "right": {
+              "type": "Const",
+              "value": "Dr"
+            }
+          }
+        },
+        "thenStatement": [
+          {
+            "type": "Terminal",
+            "kind": "throw",
+            "error": {
+              "type": "NewExpression",
+              "expression": "Error",
+              "arguments": [
+                {
+                  "type": "Const",
+                  "value": "Title must be Dr or nil!"
+                }
+              ]
+            }
+          }
+        ],
+        "elseStatement": []
+      },
+      {
+        "type": "Terminal",
+        "kind": "return",
+        "value": {
+          "type": "TemplateExpression",
+          "parts": [
+            {
+              "type": "Identifier",
+              "name": "title"
+            },
+            {
+              "type": "Const",
+              "value": " "
+            },
+            {
+              "type": "Identifier",
+              "name": "name"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "type": "Function",
+    "name": "checkUser",
+    "exported": true,
+    "params": [
+      {
+        "name": "x",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "user",
+        "type": "{ blocked: boolean }",
+        "optional": false
+      }
+    ],
+    "body": [
+      {
+        "type": "IfStatement",
+        "expression": {
+          "type": "BinaryExpression",
+          "operator": ">",
+          "left": {
+            "type": "Identifier",
+            "name": "x"
+          },
+          "right": {
+            "type": "Const",
+            "value": 10
+          }
+        },
+        "thenStatement": [
+          {
+            "type": "Terminal",
+            "kind": "return",
+            "value": {
+              "type": "Const",
+              "value": "A"
+            }
+          }
+        ],
+        "elseStatement": []
+      },
+      {
+        "type": "IfStatement",
+        "expression": {
+          "type": "PropertyAccessExpression",
+          "expression": {
+            "type": "Identifier",
+            "name": "user"
+          },
+          "name": "blocked"
+        },
+        "thenStatement": [
+          {
+            "type": "Terminal",
+            "kind": "throw",
+            "error": {
+              "type": "NewExpression",
+              "expression": "Error",
+              "arguments": [
+                {
+                  "type": "Const",
+                  "value": "blocked"
+                }
+              ]
+            }
+          }
+        ],
+        "elseStatement": []
+      },
+      {
+        "type": "Terminal",
+        "kind": "return",
+        "value": {
+          "type": "Const",
+          "value": "B"
+        }
+      }
+    ]
+  }
+]

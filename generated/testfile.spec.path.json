@@ -1,120 +1,267 @@
-{
-  "type": "Paths",
-  "function": "checkUser",
-  "paths": [
-    {
-      "id": "P1",
-      "constraints": [
-        {
-          "condition": "x > 10",
-          "expr": {
-            "type": "IRBinary",
-            "op": ">",
-            "left": {
-              "type": "IRVar",
-              "name": "x"
+[
+  {
+    "type": "Paths",
+    "function": "test",
+    "paths": [
+      {
+        "id": "P1",
+        "constraints": [
+          {
+            "condition": "!isVisible",
+            "expr": {
+              "type": "IRUnary",
+              "op": "!",
+              "expr": {
+                "type": "IRVar",
+                "name": "isVisible"
+              }
             },
-            "right": {
-              "type": "IRConst",
-              "value": 10
-            }
-          },
-          "value": true
+            "value": true
+          }
+        ],
+        "outcome": {
+          "type": "return",
+          "expr": {
+            "type": "IRVar",
+            "name": "undefined"
+          }
         }
-      ],
-      "outcome": {
-        "type": "return",
-        "expr": {
-          "type": "IRConst",
-          "value": "A"
+      },
+      {
+        "id": "P2",
+        "constraints": [
+          {
+            "condition": "!isVisible",
+            "expr": {
+              "type": "IRUnary",
+              "op": "!",
+              "expr": {
+                "type": "IRVar",
+                "name": "isVisible"
+              }
+            },
+            "value": false
+          },
+          {
+            "condition": "title and title !== 'Dr'",
+            "expr": {
+              "type": "IRBinary",
+              "op": "&&",
+              "left": {
+                "type": "IRVar",
+                "name": "title"
+              },
+              "right": {
+                "type": "IRBinary",
+                "op": "!==",
+                "left": {
+                  "type": "IRVar",
+                  "name": "title"
+                },
+                "right": {
+                  "type": "IRConst",
+                  "value": "Dr"
+                }
+              }
+            },
+            "value": true
+          }
+        ],
+        "outcome": {
+          "type": "throw",
+          "expr": {
+            "type": "IRNew",
+            "class": "Error",
+            "args": [
+              {
+                "type": "IRConst",
+                "value": "Title must be Dr or nil!"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "P3",
+        "constraints": [
+          {
+            "condition": "!isVisible",
+            "expr": {
+              "type": "IRUnary",
+              "op": "!",
+              "expr": {
+                "type": "IRVar",
+                "name": "isVisible"
+              }
+            },
+            "value": false
+          },
+          {
+            "condition": "title and title !== 'Dr'",
+            "expr": {
+              "type": "IRBinary",
+              "op": "&&",
+              "left": {
+                "type": "IRVar",
+                "name": "title"
+              },
+              "right": {
+                "type": "IRBinary",
+                "op": "!==",
+                "left": {
+                  "type": "IRVar",
+                  "name": "title"
+                },
+                "right": {
+                  "type": "IRConst",
+                  "value": "Dr"
+                }
+              }
+            },
+            "value": false
+          }
+        ],
+        "outcome": {
+          "type": "return",
+          "expr": {
+            "type": "IRTemplate",
+            "parts": [
+              {
+                "type": "IRVar",
+                "name": "title"
+              },
+              {
+                "type": "IRConst",
+                "value": " "
+              },
+              {
+                "type": "IRVar",
+                "name": "name"
+              }
+            ]
+          }
         }
       }
-    },
-    {
-      "id": "P2",
-      "constraints": [
-        {
-          "condition": "x > 10",
-          "expr": {
-            "type": "IRBinary",
-            "op": ">",
-            "left": {
-              "type": "IRVar",
-              "name": "x"
+    ]
+  },
+  {
+    "type": "Paths",
+    "function": "checkUser",
+    "paths": [
+      {
+        "id": "P1",
+        "constraints": [
+          {
+            "condition": "x > 10",
+            "expr": {
+              "type": "IRBinary",
+              "op": ">",
+              "left": {
+                "type": "IRVar",
+                "name": "x"
+              },
+              "right": {
+                "type": "IRConst",
+                "value": 10
+              }
             },
-            "right": {
-              "type": "IRConst",
-              "value": 10
-            }
-          },
-          "value": false
-        },
-        {
-          "condition": "condition",
+            "value": true
+          }
+        ],
+        "outcome": {
+          "type": "return",
           "expr": {
-            "type": "IRProperty",
-            "object": {
-              "type": "IRVar",
-              "name": "user"
-            },
-            "property": "blocked"
-          },
-          "value": true
+            "type": "IRConst",
+            "value": "A"
+          }
         }
-      ],
-      "outcome": {
-        "type": "throw",
-        "expr": {
-          "type": "IRNew",
-          "class": "Error",
-          "args": [
-            {
-              "type": "IRConst",
-              "value": "blocked"
-            }
-          ]
+      },
+      {
+        "id": "P2",
+        "constraints": [
+          {
+            "condition": "x > 10",
+            "expr": {
+              "type": "IRBinary",
+              "op": ">",
+              "left": {
+                "type": "IRVar",
+                "name": "x"
+              },
+              "right": {
+                "type": "IRConst",
+                "value": 10
+              }
+            },
+            "value": false
+          },
+          {
+            "condition": "condition",
+            "expr": {
+              "type": "IRProperty",
+              "object": {
+                "type": "IRVar",
+                "name": "user"
+              },
+              "property": "blocked"
+            },
+            "value": true
+          }
+        ],
+        "outcome": {
+          "type": "throw",
+          "expr": {
+            "type": "IRNew",
+            "class": "Error",
+            "args": [
+              {
+                "type": "IRConst",
+                "value": "blocked"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "P3",
+        "constraints": [
+          {
+            "condition": "x > 10",
+            "expr": {
+              "type": "IRBinary",
+              "op": ">",
+              "left": {
+                "type": "IRVar",
+                "name": "x"
+              },
+              "right": {
+                "type": "IRConst",
+                "value": 10
+              }
+            },
+            "value": false
+          },
+          {
+            "condition": "condition",
+            "expr": {
+              "type": "IRProperty",
+              "object": {
+                "type": "IRVar",
+                "name": "user"
+              },
+              "property": "blocked"
+            },
+            "value": false
+          }
+        ],
+        "outcome": {
+          "type": "return",
+          "expr": {
+            "type": "IRConst",
+            "value": "B"
+          }
         }
       }
-    },
-    {
-      "id": "P3",
-      "constraints": [
-        {
-          "condition": "x > 10",
-          "expr": {
-            "type": "IRBinary",
-            "op": ">",
-            "left": {
-              "type": "IRVar",
-              "name": "x"
-            },
-            "right": {
-              "type": "IRConst",
-              "value": 10
-            }
-          },
-          "value": false
-        },
-        {
-          "condition": "condition",
-          "expr": {
-            "type": "IRProperty",
-            "object": {
-              "type": "IRVar",
-              "name": "user"
-            },
-            "property": "blocked"
-          },
-          "value": false
-        }
-      ],
-      "outcome": {
-        "type": "return",
-        "expr": {
-          "type": "IRConst",
-          "value": "B"
-        }
-      }
-    }
-  ]
-}
+    ]
+  }
+]

@@ -194,7 +194,16 @@ function toFunctionNode(functionDeclaration: any): any {
 export function createAst(inputFilePath: string): any {
   const project = new Project();
   const sourceFile = project.addSourceFileAtPath(inputFilePath);
-  const functionDeclaration = sourceFile.getFunctions()[0];
+  const exportedDeclarations = sourceFile.getExportedDeclarations();
+  const exportedFunctions: any[] = [];
 
-  return functionDeclaration ? toFunctionNode(functionDeclaration) : null;
+  for (const declarations of exportedDeclarations.values()) {
+    for (const declaration of declarations) {
+      if (declaration.getKind() === SyntaxKind.FunctionDeclaration) {
+        exportedFunctions.push(declaration);
+      }
+    }
+  }
+
+  return exportedFunctions.map((functionDeclaration) => toFunctionNode(functionDeclaration));
 }
