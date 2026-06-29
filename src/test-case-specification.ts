@@ -329,6 +329,7 @@ function satisfyExpr(
   }
 
   if (expr.type === 'IRVar') {
+    if (expr.name === 'undefined') return;
     markType(typeMap, expr.name, 'boolean');
     assignVar(inputs, expr.name, expected);
     return;
@@ -380,6 +381,35 @@ function satisfyExpr(
     if (left?.type === 'IRConst' && right?.type === 'IRVar') {
       markType(typeMap, right.name, inferConstType(left.value));
       assignVar(inputs, right.name, expected ? alternativeValue(left.value) : left.value, true);
+      return;
+    }
+  }
+
+  if (expr.type === 'IRBinary' && expr.op === '===') {
+    const left = expr.left;
+    const right = expr.right;
+
+    if (left?.type === 'IRVar' && right?.type === 'IRVar' && right.name === 'undefined') {
+      markType(typeMap, left.name, 'unknown');
+      assignVar(inputs, left.name, expected ? undefined : alternativeValue(undefined), true);
+      return;
+    }
+
+    if (left?.type === 'IRVar' && right?.type === 'IRConst') {
+      markType(typeMap, left.name, inferConstType(right.value));
+      assignVar(inputs, left.name, expected ? right.value : alternativeValue(right.value), true);
+      return;
+    }
+
+    if (left?.type === 'IRConst' && right?.type === 'IRVar') {
+      if (left.value === 'undefined') {
+        markType(typeMap, right.name, 'unknown');
+        assignVar(inputs, right.name, expected ? undefined : alternativeValue(undefined), true);
+        return;
+      }
+
+      markType(typeMap, right.name, inferConstType(left.value));
+      assignVar(inputs, right.name, expected ? left.value : alternativeValue(left.value), true);
       return;
     }
   }
