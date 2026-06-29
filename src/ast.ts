@@ -176,7 +176,7 @@ function toParameterNode(parameter: any): any {
 
 function toFunctionNode(functionDeclaration: any): any {
   const bodyStatements = functionDeclaration.getBody()?.getStatements?.() ?? [];
-  const optionalParams = new Set(
+  const optionalParams = new Set<string>(
     functionDeclaration.getParameters()
       .filter((parameter: any) => parameter.hasQuestionToken())
       .map((parameter: any) => parameter.getName()),

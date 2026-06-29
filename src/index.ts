@@ -4,10 +4,19 @@ import { createAst } from './ast.js';
 import { createCfg } from './cfg.js';
 import { createIr } from './ir.js';
 
-export function writeAstToFile(inputFilePath: string, outputFilePath: string): string {
+type WriteOptions = {
+  debugOutput: boolean;
+};
+
+export function createTests(
+  inputFilePath: string,
+  outputFilePath: string,
+  options: WriteOptions = { debugOutput: false }
+): string {
   const absoluteInputPath = path.isAbsolute(inputFilePath)
     ? inputFilePath
     : path.resolve(process.cwd(), inputFilePath);
+
   const absoluteOutputPath = path.isAbsolute(outputFilePath)
     ? outputFilePath
     : path.resolve(process.cwd(), outputFilePath);
@@ -16,8 +25,17 @@ export function writeAstToFile(inputFilePath: string, outputFilePath: string): s
   const ir = createIr(ast);
   const cfg = createCfg(ir);
 
-  mkdirSync(path.dirname(absoluteOutputPath), { recursive: true });
+  const outputDir = path.dirname(absoluteOutputPath);
+  mkdirSync(outputDir, { recursive: true });
   writeFileSync(absoluteOutputPath, JSON.stringify(cfg, null, 2), 'utf-8');
+
+  if (options.debugOutput) {
+    const outputFileBase = path.basename(absoluteOutputPath, path.extname(absoluteOutputPath));
+
+    writeFileSync(path.join(outputDir, `${outputFileBase}.ast.json`), JSON.stringify(ast, null, 2), 'utf-8');
+    writeFileSync(path.join(outputDir, `${outputFileBase}.ir.json`), JSON.stringify(ir, null, 2), 'utf-8');
+    writeFileSync(path.join(outputDir, `${outputFileBase}.cfg.json`), JSON.stringify(cfg, null, 2), 'utf-8');
+  }
 
   return absoluteOutputPath;
 }

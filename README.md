@@ -7,6 +7,6 @@ Just a tools.
 
 ```
 
-npm run dev test/testfile.ts test/testfile.spec.ts
+npm run dev test/testfile.ts test/testfile.spec.ts --debug-output
 
 ```

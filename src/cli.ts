@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { writeAstToFile } from './index.js';
+import { createTests } from './index.js';
 
-const [inputArg, outputArg] = process.argv.slice(2);
+const [inputArg, outputArg, debugOutputArg] = process.argv.slice(2);
 const inputFilePath = inputArg ?? 'test/testfile.ts';
 const outputFilePath = outputArg ?? 'generated/testfile.spec.ts';
+const debugOutput = debugOutputArg === '--debug-output';
 
-const writtenFile = writeAstToFile(inputFilePath, outputFilePath);
-console.log(writtenFile);
+const writtenFile = createTests(inputFilePath, outputFilePath, { debugOutput });
+debugOutput && console.log(writtenFile);
