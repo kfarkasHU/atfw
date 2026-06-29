@@ -201,7 +201,10 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
     `describe(${JSON.stringify(`${spec.function ?? callableName}Specs`)}, () => {`,
     `  describe('given the test is initialized', () => {`,
     `    describe(${JSON.stringify(`when I call ${callableName}()`)}, () => {`,
-    body,
+      body.replace(
+        `      describe('and no cases are available', () => {\n        it('then it should keep the suite deterministic', () => {\n          expect(true).toBe(true);\n        });\n      });`,
+        `      describe('and no cases are available', () => {\n        it('then it should not throw', () => {\n          expect(() => ${callableName}(${parameterOrder.map(() => 'undefined').join(', ')})).not.toThrow();\n        });\n      });`
+      ),
     '    });',
     '  });',
     '});',
