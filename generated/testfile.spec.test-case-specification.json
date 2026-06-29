@@ -1,43 +1,40 @@
 {
-  "function": "test",
+  "function": "checkUser",
   "cases": [
     {
       "id": "C1",
       "pathId": "P1",
       "inputs": {
-        "isVisible": false,
-        "name": "name_value",
-        "title": "title_value"
+        "x": "x_value",
+        "user": "user_value"
       },
       "expected": {
         "type": "return",
-        "value": "undefined"
+        "value": "A"
       }
     },
     {
       "id": "C2",
       "pathId": "P2",
       "inputs": {
-        "isVisible": true,
-        "title": "Dr_x",
-        "name": "name_value"
+        "x": "x_value",
+        "user": "user_value"
       },
       "expected": {
         "type": "throw",
-        "message": "Title must be Dr or nil!"
+        "message": "blocked"
       }
     },
     {
       "id": "C3",
       "pathId": "P3",
       "inputs": {
-        "isVisible": true,
-        "title": "Dr",
-        "name": "name_value"
+        "x": "x_value",
+        "user": "user_value"
       },
       "expected": {
         "type": "return",
-        "value": "Dr name_value"
+        "value": "B"
       }
     }
   ]

@@ -1,17 +1,17 @@
-import { test } from "../test/testfile";
+import { checkUser } from "../test/testfile";
 
-describe("test", () => {
-  it("C1 (P1) should return undefined", () => {
-    const result = test(false, "name_value", "title_value");
-    expect(result).toBeUndefined();
+describe("checkUser", () => {
+  it("C1 (P1) should return expected value", () => {
+    const result = checkUser("x_value", "user_value");
+    expect(result).toEqual("A");
   });
 
   it("C2 (P2) should throw", () => {
-    expect(() => test(true, "name_value", "Dr_x")).toThrow("Title must be Dr or nil!");
+    expect(() => checkUser("x_value", "user_value")).toThrow("blocked");
   });
 
   it("C3 (P3) should return expected value", () => {
-    const result = test(true, "name_value", "Dr");
-    expect(result).toEqual("Dr name_value");
+    const result = checkUser("x_value", "user_value");
+    expect(result).toEqual("B");
   });
 });
