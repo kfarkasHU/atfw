@@ -1,12 +1,18 @@
 {
   "name": "atfw",
   "scripts": {
-    "dev": "tsx src/cli.ts"
+    "dev": "tsx src/cli.ts",
+    "test:jest": "jest --config jest.config.ts",
+    "test:vitest": "vitest --config vitest.config.ts run"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^26.0.1",
+    "jest": "^30.0.5",
+    "ts-jest": "^29.4.1",
     "tsx": "^4.22.4",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   },
   "volta": {
     "node": "24.12.0",

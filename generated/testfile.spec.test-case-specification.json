@@ -5,8 +5,10 @@
       "id": "C1",
       "pathId": "P1",
       "inputs": {
-        "x": "x_value",
-        "user": "user_value"
+        "x": 11,
+        "user": {
+          "blocked": false
+        }
       },
       "expected": {
         "type": "return",
@@ -17,8 +19,10 @@
       "id": "C2",
       "pathId": "P2",
       "inputs": {
-        "x": "x_value",
-        "user": "user_value"
+        "x": 10,
+        "user": {
+          "blocked": true
+        }
       },
       "expected": {
         "type": "throw",
@@ -29,8 +33,10 @@
       "id": "C3",
       "pathId": "P3",
       "inputs": {
-        "x": "x_value",
-        "user": "user_value"
+        "x": 10,
+        "user": {
+          "blocked": false
+        }
       },
       "expected": {
         "type": "return",

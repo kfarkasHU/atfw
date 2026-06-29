@@ -43,10 +43,15 @@ type ConstraintsOutput = {
 };
 
 type TestCaseSpecificationOptions = {
-  params?: string[];
+  params?: Array<string | { name: string; type?: string }>;
 };
 
-type InferredType = 'boolean' | 'number' | 'string' | 'unknown';
+type InferredType = 'boolean' | 'number' | 'string' | 'object' | 'unknown';
+
+type ParamMeta = {
+  name: string;
+  type?: string;
+};
 
 function assignVar(inputs: Record<string, unknown>, name: string, value: unknown, overwrite = false) {
   if (overwrite || !(name in inputs)) {
@@ -58,6 +63,7 @@ function inferConstType(value: unknown): InferredType {
   if (typeof value === 'boolean') return 'boolean';
   if (typeof value === 'number') return 'number';
   if (typeof value === 'string') return 'string';
+  if (value !== null && typeof value === 'object') return 'object';
   return 'unknown';
 }
 
@@ -72,6 +78,13 @@ function markType(typeMap: Record<string, InferredType>, name: string, type: Inf
 
 function collectExprTypes(expr: IrExpr | null | undefined, typeMap: Record<string, InferredType>) {
   if (!expr) return;
+
+  if (expr.type === 'IRProperty') {
+    if (expr.object?.type === 'IRVar') {
+      markType(typeMap, expr.object.name, 'object');
+    }
+    return;
+  }
 
   if (expr.type === 'IRTemplate') {
     for (const part of expr.parts ?? []) {
@@ -95,6 +108,16 @@ function collectExprTypes(expr: IrExpr | null | undefined, typeMap: Record<strin
       }
     }
 
+    if (['>', '>=', '<', '<='].includes(expr.op)) {
+      if (left?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
+        markType(typeMap, left.name, 'number');
+      }
+
+      if (left?.type === 'IRConst' && typeof left.value === 'number' && right?.type === 'IRVar') {
+        markType(typeMap, right.name, 'number');
+      }
+    }
+
     collectExprTypes(left, typeMap);
     collectExprTypes(right, typeMap);
   }
@@ -108,6 +131,7 @@ function defaultValueForVar(name: string, inferredType: InferredType): unknown {
   if (inferredType === 'boolean') return true;
   if (inferredType === 'number') return 1;
   if (inferredType === 'string') return `${name}_value`;
+  if (inferredType === 'object') return {};
   return `${name}_value`;
 }
 
@@ -119,11 +143,65 @@ function fillMissingInputs(inputs: Record<string, unknown>, typeMap: Record<stri
   }
 }
 
-function fillMissingParams(inputs: Record<string, unknown>, params: string[], typeMap: Record<string, InferredType>) {
+function normalizeParams(params: Array<string | { name: string; type?: string }>): ParamMeta[] {
+  return params.map((param) => {
+    if (typeof param === 'string') {
+      return { name: param };
+    }
+
+    return { name: param.name, type: param.type };
+  });
+}
+
+function defaultFromDeclaredType(type: string | undefined, name: string): unknown {
+  if (!type) return `${name}_value`;
+
+  const normalized = type.replace(/\?$/, '').trim();
+
+  if (normalized === 'boolean') return false;
+  if (normalized === 'number') return 1;
+  if (normalized === 'string') return `${name}_value`;
+
+  if (normalized.startsWith('{') && normalized.endsWith('}')) {
+    const content = normalized.slice(1, -1).trim();
+    if (!content) return {};
+
+    const objectValue: Record<string, unknown> = {};
+    const members = content.split(/[;,]/).map((member) => member.trim()).filter(Boolean);
+
+    for (const member of members) {
+      const match = member.match(/^([A-Za-z0-9_]+)\??\s*:\s*(.+)$/);
+      if (!match) continue;
+
+      const [, property, propertyTypeRaw] = match;
+      const propertyType = propertyTypeRaw.trim();
+
+      if (propertyType === 'boolean') {
+        objectValue[property] = false;
+      } else if (propertyType === 'number') {
+        objectValue[property] = 1;
+      } else if (propertyType === 'string') {
+        objectValue[property] = `${property}_value`;
+      } else {
+        objectValue[property] = null;
+      }
+    }
+
+    return objectValue;
+  }
+
+  return `${name}_value`;
+}
+
+function fillMissingParams(inputs: Record<string, unknown>, params: ParamMeta[], typeMap: Record<string, InferredType>) {
   for (const param of params) {
-    if (!(param in inputs)) {
-      const inferredType = typeMap[param] ?? 'unknown';
-      inputs[param] = defaultValueForVar(param, inferredType);
+    if (!(param.name in inputs)) {
+      const inferredType = typeMap[param.name] ?? 'unknown';
+      if (inferredType !== 'unknown') {
+        inputs[param.name] = defaultValueForVar(param.name, inferredType);
+      } else {
+        inputs[param.name] = defaultFromDeclaredType(param.type, param.name);
+      }
     }
   }
 }
@@ -152,6 +230,18 @@ function satisfyExpr(
   if (expr.type === 'IRVar') {
     markType(typeMap, expr.name, 'boolean');
     assignVar(inputs, expr.name, expected);
+    return;
+  }
+
+  if (expr.type === 'IRProperty') {
+    const targetObject = expr.object;
+    if (targetObject?.type === 'IRVar' && expr.property) {
+      markType(typeMap, targetObject.name, 'object');
+      const current = inputs[targetObject.name];
+      const objectValue = current && typeof current === 'object' ? { ...(current as Record<string, unknown>) } : {};
+      objectValue[expr.property] = expected;
+      assignVar(inputs, targetObject.name, objectValue, true);
+    }
     return;
   }
 
@@ -192,6 +282,44 @@ function satisfyExpr(
       return;
     }
   }
+
+  if (expr.type === 'IRBinary' && ['>', '>=', '<', '<='].includes(expr.op)) {
+    const left = expr.left;
+    const right = expr.right;
+
+    const assignFromComparison = (
+      variableName: string,
+      comparator: string,
+      constant: number,
+      shouldSatisfy: boolean,
+    ) => {
+      markType(typeMap, variableName, 'number');
+
+      let value = constant;
+      if (comparator === '>') value = shouldSatisfy ? constant + 1 : constant;
+      if (comparator === '>=') value = shouldSatisfy ? constant : constant - 1;
+      if (comparator === '<') value = shouldSatisfy ? constant - 1 : constant;
+      if (comparator === '<=') value = shouldSatisfy ? constant : constant + 1;
+
+      assignVar(inputs, variableName, value, true);
+    };
+
+    if (left?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
+      assignFromComparison(left.name, expr.op, right.value, expected);
+      return;
+    }
+
+    if (left?.type === 'IRConst' && typeof left.value === 'number' && right?.type === 'IRVar') {
+      const reversedComparator: Record<string, string> = {
+        '>': '<',
+        '>=': '<=',
+        '<': '>',
+        '<=': '>=',
+      };
+      assignFromComparison(right.name, reversedComparator[expr.op], left.value, expected);
+      return;
+    }
+  }
 }
 
 function evaluateExpr(expr: IrExpr | null | undefined, inputs: Record<string, unknown>): unknown {
@@ -224,7 +352,7 @@ function evaluateExpr(expr: IrExpr | null | undefined, inputs: Record<string, un
   return null;
 }
 
-function buildCase(path: PathItem, index: number, params: string[]): ConstraintsCase {
+function buildCase(path: PathItem, index: number, params: ParamMeta[]): ConstraintsCase {
   const inputs: Record<string, unknown> = {};
   const typeMap: Record<string, InferredType> = {};
 
@@ -274,7 +402,7 @@ export function createTestCaseSpecification(
     };
   }
 
-  const params = options.params ?? [];
+  const params = normalizeParams(options.params ?? []);
 
   return {
     function: pathResult.function ?? 'unknown',

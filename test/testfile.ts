@@ -4,7 +4,7 @@
 //   return `${title} ${name}`;
 // }
 
-function checkUser(x: number, user: { blocked: boolean }) {
+export function checkUser(x: number, user: { blocked: boolean }) {
   if (x > 10) {
     return "A";
   }

@@ -1,7 +1,7 @@
 {
   "type": "Function",
   "name": "checkUser",
-  "exported": false,
+  "exported": true,
   "params": [
     {
       "name": "x",

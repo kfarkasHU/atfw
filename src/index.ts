@@ -37,7 +37,7 @@ export function createTests(
         paths: [],
       };
   const testCaseSpecification = createTestCaseSpecification(paths, {
-    params: ir?.params ?? [],
+    params: ast?.params ?? [],
   });
   const generatorOptions = {
     functionName: ast?.name ?? 'sut',
