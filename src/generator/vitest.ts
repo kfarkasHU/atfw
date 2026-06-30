@@ -71,7 +71,10 @@ function toStateMessage(testCase: TestCaseSpecification['cases'][number], parame
     return 'the inputs are defaulted';
   }
 
-  const parts = keys.map((key) => `${key} is ${stableSerialize(testCase.inputs[key])}`);
+  const parts = keys.map((key) => {
+    const description = testCase.stateDescriptions?.[key];
+    return `${key} is ${description ?? stableSerialize(testCase.inputs[key])}`;
+  });
   return parts.join(', ');
 }
 

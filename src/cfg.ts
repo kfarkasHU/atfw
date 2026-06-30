@@ -23,6 +23,8 @@ type Edge = {
   label?: 'true' | 'false';
 };
 
+type LocalBindings = Record<string, unknown>;
+
 function formatCondition(condition: any): string {
   if (!condition) return '';
 
@@ -56,6 +58,7 @@ function formatValue(value: any): string {
 
   if (value.type === 'IRConst') return String(value.value);
   if (value.type === 'IRVar') return value.name;
+  if (value.type === 'IRArray') return `[${(value.elements ?? []).map((element: any) => formatValue(element)).join(', ')}]`;
 
   if (value.type === 'IRTemplate') {
     return "`${title} ${name}`";
@@ -66,6 +69,13 @@ function formatValue(value: any): string {
   }
 
   return 'value';
+}
+
+function evaluateLocalValue(value: any): unknown {
+  if (!value) return null;
+  if (value.type === 'IRConst') return value.value;
+  if (value.type === 'IRArray') return (value.elements ?? []).map((element: any) => evaluateLocalValue(element));
+  return null;
 }
 
 function createConditionPayload(condition: any): { text: string; expr: any } {
@@ -171,9 +181,16 @@ export function createCfg(ir: any) {
     .map((item) => {
       const nodes: Node[] = [];
       const edges: Edge[] = [];
+      const locals: LocalBindings = {};
 
       const entry = createNode(nodes, 'Entry');
       const exit = createNode(nodes, 'Exit');
+
+      for (const statement of item.body ?? []) {
+        if (statement?.type === 'IRConstDecl') {
+          locals[statement.name] = evaluateLocalValue(statement.value);
+        }
+      }
 
       buildStatements(item.body ?? [], entry.id, nodes, edges, exit.id);
 
@@ -181,6 +198,7 @@ export function createCfg(ir: any) {
         type: 'CFG',
         function: item.name ?? 'unknown',
         imports: item.imports ?? [],
+        locals,
         entry: entry.id,
         exit: exit.id,
         nodes,

@@ -13,6 +13,16 @@ function toIrExpression(node: any): any {
         left: toIrExpression(node.left),
         right: toIrExpression(node.right),
       };
+    case 'TypeOfExpression':
+      return {
+        type: 'IRTypeOf',
+        expr: toIrExpression(node.expression),
+      };
+    case 'ArrayLiteralExpression':
+      return {
+        type: 'IRArray',
+        elements: (node.elements ?? []).map((element: any) => toIrExpression(element)),
+      };
     case 'ConditionalExpression':
       return {
         type: 'IRConditional',
@@ -81,6 +91,14 @@ function toIrStatement(node: any): any {
     }
   }
 
+  if (node.type === 'VariableStatement') {
+    return (node.declarations ?? []).map((declaration: any) => ({
+      type: 'IRConstDecl',
+      name: declaration.name,
+      value: toIrExpression(declaration.initializer),
+    }));
+  }
+
   return { type: 'IRUnknown', value: node };
 }
 
@@ -96,6 +114,9 @@ export function createIr(ast: any): any {
       name: item.name,
       params: item.params?.map((param: any) => param.name) ?? [],
       imports: item.imports ?? [],
-      body: (item.body ?? []).map((statement: any) => toIrStatement(statement)),
+      body: (item.body ?? []).flatMap((statement: any) => {
+        const irStatement = toIrStatement(statement);
+        return Array.isArray(irStatement) ? irStatement : [irStatement];
+      }),
     }));
 }

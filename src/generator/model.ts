@@ -2,6 +2,7 @@ type TestCase = {
   id: string;
   pathId: string;
   inputs: Record<string, unknown>;
+  stateDescriptions?: Record<string, string>;
   mocks?: Record<string, unknown>;
   expected: {
     type: 'return' | 'throw';

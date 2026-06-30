@@ -7,9 +7,23 @@ RUNNERS=(
 )
 
 INPUT_FILES=(
+  test/boolean-constraints.ts
+  test/if-falsy.ts
+  test/if-truthy.ts
+  test/if-true.ts
   test/testfile.ts
   test/import-test.ts
+  test/is-array.ts
+  test/is-boolean.ts
+  test/is-defined.ts
+  test/is-false.ts
   test/is-nil.ts
+  test/is-null.ts
+  test/is-number.ts
+  test/is-object.ts
+  test/is-primitive.ts
+  test/is-string.ts
+  test/numeric-boundaries.ts
   test/noop.ts
 )
 

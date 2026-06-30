@@ -18,6 +18,7 @@ type CfgInput = {
   type: string;
   function?: string;
   imports?: Array<Import>;
+  locals?: Record<string, unknown>;
   entry: string;
   exit: string;
   nodes: CfgNode[];
@@ -45,6 +46,7 @@ interface SinglePath {
   type: 'Paths',
   function: string,
   imports: Array<Import>,
+  locals: Record<string, unknown>,
   paths: PathItem[];
 }
 
@@ -125,6 +127,7 @@ function createSinglePath(cfg: CfgInput): SinglePath {
     type: 'Paths',
     function: cfg.function ?? 'unknown',
     imports: cfg.imports ?? [],
+    locals: cfg.locals ?? {},
     paths,
   };
 }

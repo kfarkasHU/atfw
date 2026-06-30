@@ -29,6 +29,18 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
     case SyntaxKind.NumericLiteral: {
       return { type: 'Const', value: Number(expression.getText()) };
     }
+    case SyntaxKind.TypeOfExpression: {
+      return {
+        type: 'TypeOfExpression',
+        expression: toExpressionNode(expression.getExpression(), optionalParams),
+      };
+    }
+    case SyntaxKind.ArrayLiteralExpression: {
+      return {
+        type: 'ArrayLiteralExpression',
+        elements: expression.getElements().map((element: any) => toExpressionNode(element, optionalParams)),
+      };
+    }
     case SyntaxKind.PrefixUnaryExpression: {
       return {
         type: 'PrefixUnaryExpression',
@@ -173,6 +185,16 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
     return {
       type: 'Expression',
       expression: toExpressionNode(statement.getExpression(), optionalParams),
+    };
+  }
+
+  if (statement.getKind() === SyntaxKind.VariableStatement) {
+    return {
+      type: 'VariableStatement',
+      declarations: statement.getDeclarationList().getDeclarations().map((declaration: any) => ({
+        name: declaration.getName(),
+        initializer: toExpressionNode(declaration.getInitializer(), optionalParams),
+      })),
     };
   }
 
