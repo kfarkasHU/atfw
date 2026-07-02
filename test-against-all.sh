@@ -7,6 +7,12 @@ RUNNERS=(
 )
 
 INPUT_FILES=(
+  test/array-categorize-by-contains.ts
+  test/array-categorize-by-length.ts
+  test/array-includes-one.ts
+  test/array-includes-value.ts
+  test/array-is-empty.ts
+  test/array-length-at-least-two.ts
   test/boolean-constraints.ts
   test/if-falsy.ts
   test/if-truthy.ts
@@ -16,13 +22,17 @@ INPUT_FILES=(
   test/is-array.ts
   test/is-boolean.ts
   test/is-defined.ts
+  test/is-empty-string.ts
   test/is-false.ts
   test/is-nil.ts
   test/is-null.ts
   test/is-number.ts
   test/is-object.ts
   test/is-primitive.ts
+  test/is-primitive-or.ts
   test/is-string.ts
+  test/is-true.ts
+  test/is-zero.ts
   test/numeric-boundaries.ts
   test/noop.ts
 )
@@ -41,6 +51,8 @@ FAILED=()
 header "=== Generating test files ==="
 
 for runner in "${RUNNERS[@]}"; do
+  rm -f "generated/${runner}"/*.spec.ts
+
   for input in "${INPUT_FILES[@]}"; do
     # Derive output filename: strip leading path, swap extension, place under generated/<runner>/
     basename="${input##*/}"          # e.g. testfile.ts

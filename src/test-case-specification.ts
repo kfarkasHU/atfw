@@ -269,6 +269,11 @@ function sampleValueForPrimitiveType(typeName: string, variableName: string): un
   return `${variableName}_value`;
 }
 
+function sampleNonMatchingPrimitiveValue(typeName: string): unknown {
+  if (['string', 'number', 'boolean'].includes(typeName)) return {};
+  return {};
+}
+
 function sampleNegativeWitnesses(): unknown[] {
   return [{}, null, undefined];
 }
@@ -328,6 +333,19 @@ function comparisonWitnessValues(comparator: string, constant: number, expected:
   return [constant];
 }
 
+function arrayWithLength(length: number): unknown[] {
+  const safeLength = Math.max(0, length);
+  return Array.from({ length: safeLength }, (_, index) => index + 1);
+}
+
+function arrayWitnessesForComparison(comparator: string, constant: number, expected: boolean): unknown[][] {
+  return comparisonWitnessValues(comparator, constant, expected).map((value) => arrayWithLength(value));
+}
+
+function defaultIncludesSearchValue(): unknown {
+  return 1;
+}
+
 function isBooleanLikeExpr(expr: IrExpr | null | undefined): boolean {
   if (!expr) return false;
 
@@ -384,6 +402,35 @@ function expandConstraintVariants(
     const left = expr.left;
     const right = expr.right;
 
+    if (left?.type === 'IRProperty' && left.property === 'length' && left.object?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
+      markType(typeMap, left.object.name, 'object');
+      return arrayWitnessesForComparison(expr.op, right.value, expected).map((value) => ({
+        inputs: {
+          ...state.inputs,
+          [left.object.name]: value,
+        },
+        stateDescriptions: { ...state.stateDescriptions },
+      }));
+    }
+
+    if (left?.type === 'IRConst' && typeof left.value === 'number' && right?.type === 'IRProperty' && right.property === 'length' && right.object?.type === 'IRVar') {
+      const reversedComparator: Record<string, string> = {
+        '>': '<',
+        '>=': '<=',
+        '<': '>',
+        '<=': '>=',
+      };
+
+      markType(typeMap, right.object.name, 'object');
+      return arrayWitnessesForComparison(reversedComparator[expr.op], left.value, expected).map((value) => ({
+        inputs: {
+          ...state.inputs,
+          [right.object.name]: value,
+        },
+        stateDescriptions: { ...state.stateDescriptions },
+      }));
+    }
+
     if (left?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
       markType(typeMap, left.name, 'number');
       return comparisonWitnessValues(expr.op, right.value, expected).map((value) => ({
@@ -411,6 +458,57 @@ function expandConstraintVariants(
         },
         stateDescriptions: { ...state.stateDescriptions },
       }));
+    }
+  }
+
+  if (expr.type === 'IRBinary' && ['===', '!=='].includes(expr.op)) {
+    const left = expr.left;
+    const right = expr.right;
+
+    if (left?.type === 'IRProperty' && left.property === 'length' && left.object?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
+      markType(typeMap, left.object.name, 'object');
+      const existing = state.inputs[left.object.name];
+      const existingLength = Array.isArray(existing) ? existing.length : null;
+      const alreadySatisfies = existingLength !== null
+        ? (expr.op === '===' ? (existingLength === right.value) === expected : (existingLength !== right.value) === expected)
+        : false;
+
+      const witnessLength = alreadySatisfies
+        ? existingLength!
+        : expr.op === '==='
+          ? (expected ? right.value : right.value + 1)
+          : (expected ? right.value + 1 : right.value);
+
+      return [{
+        inputs: {
+          ...state.inputs,
+          [left.object.name]: arrayWithLength(witnessLength),
+        },
+        stateDescriptions: { ...state.stateDescriptions },
+      }];
+    }
+
+    if (left?.type === 'IRConst' && typeof left.value === 'number' && right?.type === 'IRProperty' && right.property === 'length' && right.object?.type === 'IRVar') {
+      markType(typeMap, right.object.name, 'object');
+      const existing = state.inputs[right.object.name];
+      const existingLength = Array.isArray(existing) ? existing.length : null;
+      const alreadySatisfies = existingLength !== null
+        ? (expr.op === '===' ? (existingLength === left.value) === expected : (existingLength !== left.value) === expected)
+        : false;
+
+      const witnessLength = alreadySatisfies
+        ? existingLength!
+        : expr.op === '==='
+          ? (expected ? left.value : left.value + 1)
+          : (expected ? left.value + 1 : left.value);
+
+      return [{
+        inputs: {
+          ...state.inputs,
+          [right.object.name]: arrayWithLength(witnessLength),
+        },
+        stateDescriptions: { ...state.stateDescriptions },
+      }];
     }
   }
 
@@ -453,6 +551,28 @@ function expandConstraintVariants(
         stateDescriptions: { ...state.stateDescriptions },
       }));
     }
+
+    if (expr.callee.object?.type === 'IRVar') {
+      const arrayName = expr.callee.object.name;
+      const searchArg = expr.args?.[0];
+      const searchValue = searchArg?.type === 'IRConst' ? searchArg.value : defaultIncludesSearchValue();
+
+      const nextInputs = {
+        ...state.inputs,
+        [arrayName]: expected ? [searchValue] : [],
+      } as Record<string, unknown>;
+
+      if (searchArg?.type === 'IRVar') {
+        nextInputs[searchArg.name] = searchValue;
+      }
+
+      markType(typeMap, arrayName, 'object');
+
+      return [{
+        inputs: nextInputs,
+        stateDescriptions: { ...state.stateDescriptions },
+      }];
+    }
   }
 
   const nextState: ConstraintState = {
@@ -492,8 +612,8 @@ function evaluateExpr(
 
   if (expr.type === 'IRVar') {
     if (expr.name === 'undefined') return 'undefined';
-    if (expr.name in inputs) return inputs[expr.name];
     if (expr.name in locals) return locals[expr.name];
+    if (expr.name in inputs) return inputs[expr.name];
     if (expr.name in mocks) return mocks[expr.name];
     return expr.name;
   }
@@ -678,6 +798,21 @@ function satisfyExpr(
     return;
   }
 
+  if (expr.type === 'IRCall' && expr.callee?.type === 'IRProperty' && expr.callee.property === 'includes') {
+    const targetArray = expr.callee.object;
+    if (targetArray?.type === 'IRVar') {
+      const searchArg = expr.args?.[0];
+      const searchValue = searchArg?.type === 'IRConst' ? searchArg.value : defaultIncludesSearchValue();
+      assignVar(inputs, targetArray.name, expected ? [searchValue] : [], true);
+      markType(typeMap, targetArray.name, 'object');
+
+      if (searchArg?.type === 'IRVar') {
+        assignVar(inputs, searchArg.name, searchValue, true);
+      }
+    }
+    return;
+  }
+
   if (expr.type === 'IRCall' && expr.callee?.type === 'IRProperty' && expr.callee.property === 'isArray') {
     const target = expr.args?.[0];
     if (target?.type === 'IRVar') {
@@ -721,7 +856,7 @@ function satisfyExpr(
 
     if (typeTarget && typeConst && ['string', 'number', 'boolean'].includes(typeConst)) {
       markType(typeMap, typeTarget, typeConst as InferredType);
-      assignVar(inputs, typeTarget, expected ? alternativeValue(sampleValueForPrimitiveType(typeConst, typeTarget)) : sampleValueForPrimitiveType(typeConst, typeTarget), true);
+      assignVar(inputs, typeTarget, expected ? sampleNonMatchingPrimitiveValue(typeConst) : sampleValueForPrimitiveType(typeConst, typeTarget), true);
       assignDescription(stateDescriptions, typeTarget, describeConstraintValue(typeConst, expected));
       return;
     }
@@ -745,6 +880,20 @@ function satisfyExpr(
     const left = expr.left;
     const right = expr.right;
 
+    if (left?.type === 'IRProperty' && left.property === 'length' && left.object?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
+      markType(typeMap, left.object.name, 'object');
+      const witnessLength = expected ? right.value : right.value + 1;
+      assignVar(inputs, left.object.name, arrayWithLength(witnessLength), true);
+      return;
+    }
+
+    if (left?.type === 'IRConst' && typeof left.value === 'number' && right?.type === 'IRProperty' && right.property === 'length' && right.object?.type === 'IRVar') {
+      markType(typeMap, right.object.name, 'object');
+      const witnessLength = expected ? left.value : left.value + 1;
+      assignVar(inputs, right.object.name, arrayWithLength(witnessLength), true);
+      return;
+    }
+
     const typeTarget = extractTypeOfTarget(left) ?? extractTypeOfTarget(right);
     const typeConst = left?.type === 'IRConst' && typeof left.value === 'string'
       ? left.value
@@ -754,7 +903,7 @@ function satisfyExpr(
 
     if (typeTarget && typeConst && ['string', 'number', 'boolean'].includes(typeConst)) {
       markType(typeMap, typeTarget, typeConst as InferredType);
-      assignVar(inputs, typeTarget, expected ? sampleValueForPrimitiveType(typeConst, typeTarget) : alternativeValue(sampleValueForPrimitiveType(typeConst, typeTarget)), true);
+      assignVar(inputs, typeTarget, expected ? sampleValueForPrimitiveType(typeConst, typeTarget) : sampleNonMatchingPrimitiveValue(typeConst), true);
       assignDescription(stateDescriptions, typeTarget, describeConstraintValue(typeConst, !expected));
       return;
     }
@@ -792,6 +941,25 @@ function satisfyExpr(
     const left = expr.left;
     const right = expr.right;
 
+    if (left?.type === 'IRProperty' && left.property === 'length' && left.object?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
+      markType(typeMap, left.object.name, 'object');
+      assignVar(inputs, left.object.name, arrayWithLength(comparisonWitnessValues(expr.op, right.value, expected)[0]), true);
+      return;
+    }
+
+    if (left?.type === 'IRConst' && typeof left.value === 'number' && right?.type === 'IRProperty' && right.property === 'length' && right.object?.type === 'IRVar') {
+      const reversedComparator: Record<string, string> = {
+        '>': '<',
+        '>=': '<=',
+        '<': '>',
+        '<=': '>=',
+      };
+
+      markType(typeMap, right.object.name, 'object');
+      assignVar(inputs, right.object.name, arrayWithLength(comparisonWitnessValues(reversedComparator[expr.op], left.value, expected)[0]), true);
+      return;
+    }
+
     const assignFromComparison = (
       variableName: string,
       comparator: string,
@@ -822,6 +990,25 @@ function satisfyExpr(
         '<=': '>=',
       };
       assignFromComparison(right.name, reversedComparator[expr.op], left.value, expected);
+      return;
+    }
+  }
+
+  if (expr.type === 'IRBinary' && expr.op === '!==') {
+    const left = expr.left;
+    const right = expr.right;
+
+    if (left?.type === 'IRProperty' && left.property === 'length' && left.object?.type === 'IRVar' && right?.type === 'IRConst' && typeof right.value === 'number') {
+      markType(typeMap, left.object.name, 'object');
+      const witnessLength = expected ? right.value + 1 : right.value;
+      assignVar(inputs, left.object.name, arrayWithLength(witnessLength), true);
+      return;
+    }
+
+    if (left?.type === 'IRConst' && typeof left.value === 'number' && right?.type === 'IRProperty' && right.property === 'length' && right.object?.type === 'IRVar') {
+      markType(typeMap, right.object.name, 'object');
+      const witnessLength = expected ? left.value + 1 : left.value;
+      assignVar(inputs, right.object.name, arrayWithLength(witnessLength), true);
       return;
     }
   }
