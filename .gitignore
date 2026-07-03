@@ -1,5 +1,6 @@
 #repo
 generated
+coverage
 
 # OS
 .DS_Store
