@@ -99,6 +99,13 @@ function toIrStatement(node: any): any {
     }));
   }
 
+  if (node.type === 'Expression') {
+    return {
+      type: 'IRExpression',
+      expr: toIrExpression(node.expression),
+    };
+  }
+
   return { type: 'IRUnknown', value: node };
 }
 

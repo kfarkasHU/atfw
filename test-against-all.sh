@@ -14,6 +14,7 @@ INPUT_FILES=(
   test/array-is-empty.ts
   test/array-length-at-least-two.ts
   test/boolean-constraints.ts
+  test/call-flow.ts
   test/if-falsy.ts
   test/if-truthy.ts
   test/if-true.ts

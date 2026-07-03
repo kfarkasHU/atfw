@@ -1,4 +1,4 @@
-type NodeType = 'Entry' | 'Exit' | 'Branch' | 'Return' | 'Throw';
+type NodeType = 'Entry' | 'Exit' | 'Branch' | 'Return' | 'Throw' | 'Effect';
 
 type Node = {
   id: string;
@@ -12,6 +12,10 @@ type Node = {
     expr: any;
   };
   error?: {
+    text: string;
+    expr: any;
+  };
+  effect?: {
     text: string;
     expr: any;
   };
@@ -166,6 +170,15 @@ function buildStatements(
     addEdge(edges, thr.id, exitId);
 
     return thr.id;
+  }
+
+  if (stmt.type === 'IRExpression') {
+    const effect = createNode(nodes, 'Effect', {
+      effect: createValuePayload(stmt.expr),
+    });
+
+    addEdge(edges, current, effect.id, incomingLabel);
+    return buildStatements(rest, effect.id, nodes, edges, exitId);
   }
 
   return buildStatements(rest, current, nodes, edges, exitId, incomingLabel);

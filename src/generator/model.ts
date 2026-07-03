@@ -4,6 +4,10 @@ type TestCase = {
   inputs: Record<string, unknown>;
   stateDescriptions?: Record<string, string>;
   mocks?: Record<string, unknown>;
+  callExpectations?: Array<{
+    path: string[];
+    args: unknown[][];
+  }>;
   expected: {
     type: 'return' | 'throw';
     value?: unknown;

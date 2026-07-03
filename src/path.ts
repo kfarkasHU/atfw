@@ -1,9 +1,10 @@
 type CfgNode = {
   id: string;
-  type: 'Entry' | 'Exit' | 'Branch' | 'Return' | 'Throw';
+  type: 'Entry' | 'Exit' | 'Branch' | 'Return' | 'Throw' | 'Effect';
   condition?: { text: string; expr: any };
   value?: { text: string; expr: any };
   error?: { text: string; expr: any };
+  effect?: { text: string; expr: any };
 };
 
 type CfgEdge = {
@@ -39,6 +40,7 @@ type PathOutcome = {
 type PathItem = {
   id: string;
   constraints: PathConstraint[];
+  effects: Array<{ expr: any }>;
   outcome: PathOutcome;
 };
 
@@ -58,7 +60,7 @@ function createSinglePath(cfg: CfgInput): SinglePath {
   const nodeById = new Map(cfg.nodes.map((node) => [node.id, node]));
   const paths: PathItem[] = [];
 
-  function walk(nodeId: string, constraints: PathConstraint[], trail: Set<string>) {
+  function walk(nodeId: string, constraints: PathConstraint[], effects: Array<{ expr: any }>, trail: Set<string>) {
     const node = nodeById.get(nodeId);
     if (!node || trail.has(nodeId)) return;
 
@@ -69,6 +71,7 @@ function createSinglePath(cfg: CfgInput): SinglePath {
       paths.push({
         id: `P${paths.length + 1}`,
         constraints,
+        effects,
         outcome: {
           type: 'return',
           expr: node.value?.expr ?? null,
@@ -81,6 +84,7 @@ function createSinglePath(cfg: CfgInput): SinglePath {
       paths.push({
         id: `P${paths.length + 1}`,
         constraints,
+        effects,
         outcome: {
           type: 'throw',
           expr: node.error?.expr ?? null,
@@ -94,6 +98,13 @@ function createSinglePath(cfg: CfgInput): SinglePath {
     }
 
     const outgoing = getOutgoing(cfg.edges, nodeId);
+
+    if (node.type === 'Effect') {
+      for (const edge of outgoing) {
+        walk(edge.to, constraints, [...effects, { expr: node.effect?.expr ?? null }], nextTrail);
+      }
+      return;
+    }
 
     if (node.type === 'Branch' && node.condition) {
       for (const edge of outgoing) {
@@ -110,6 +121,7 @@ function createSinglePath(cfg: CfgInput): SinglePath {
               value,
             },
           ],
+          effects,
           nextTrail,
         );
       }
@@ -117,11 +129,11 @@ function createSinglePath(cfg: CfgInput): SinglePath {
     }
 
     for (const edge of outgoing) {
-      walk(edge.to, constraints, nextTrail);
+      walk(edge.to, constraints, effects, nextTrail);
     }
   }
 
-  walk(cfg.entry, [], new Set<string>());
+  walk(cfg.entry, [], [], new Set<string>());
 
   return {
     type: 'Paths',

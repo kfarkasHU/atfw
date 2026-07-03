@@ -17,6 +17,7 @@ type PathOutcome = {
 type PathItem = {
   id: string;
   constraints: PathConstraint[];
+  effects?: Array<{ expr: IrExpr | null }>;
   outcome: PathOutcome;
 };
 
@@ -34,6 +35,10 @@ type ConstraintsCase = {
   inputs: Record<string, unknown>;
   stateDescriptions?: Record<string, string>;
   mocks?: Record<string, unknown>;
+  callExpectations?: Array<{
+    path: string[];
+    args: unknown[][];
+  }>;
   expected: {
     type: 'return' | 'throw';
     value?: unknown;
@@ -592,6 +597,107 @@ function getCalleeName(expr: IrExpr | null | undefined): string | null {
   return null;
 }
 
+function resolveTrackedCallPath(expr: IrExpr | null | undefined, importedNames: Set<string>): string[] | null {
+  if (!expr || expr.type !== 'IRCall') return null;
+
+  if (expr.callee?.type === 'IRVar' && importedNames.has(expr.callee.name)) {
+    return [expr.callee.name];
+  }
+
+  if (expr.callee?.type === 'IRProperty' && expr.callee.object?.type === 'IRCall') {
+    const basePath = resolveTrackedCallPath(expr.callee.object, importedNames);
+    if (basePath) {
+      return [...basePath, expr.callee.property];
+    }
+  }
+
+  return null;
+}
+
+function collectCallOccurrences(
+  expr: IrExpr | null | undefined,
+  inputs: Record<string, unknown>,
+  locals: Record<string, unknown>,
+  mocks: Record<string, unknown>,
+  importedNames: Set<string>,
+): Array<{ path: string[]; args: unknown[] }> {
+  if (!expr) return [];
+
+  if (expr.type === 'IRCall') {
+    const nested = [
+      ...collectCallOccurrences(expr.callee, inputs, locals, mocks, importedNames),
+      ...(expr.args ?? []).flatMap((arg: IrExpr) => collectCallOccurrences(arg, inputs, locals, mocks, importedNames)),
+    ];
+
+    const callPath = resolveTrackedCallPath(expr, importedNames);
+    if (!callPath) return nested;
+
+    return [
+      ...nested,
+      {
+        path: callPath,
+        args: (expr.args ?? []).map((arg: IrExpr) => evaluateExpr(arg, inputs, locals, mocks)),
+      },
+    ];
+  }
+
+  if (expr.type === 'IRBinary') {
+    return [
+      ...collectCallOccurrences(expr.left, inputs, locals, mocks, importedNames),
+      ...collectCallOccurrences(expr.right, inputs, locals, mocks, importedNames),
+    ];
+  }
+
+  if (expr.type === 'IRUnary') {
+    return collectCallOccurrences(expr.expr, inputs, locals, mocks, importedNames);
+  }
+
+  if (expr.type === 'IRConditional') {
+    return [
+      ...collectCallOccurrences(expr.condition, inputs, locals, mocks, importedNames),
+      ...collectCallOccurrences(expr.whenTrue, inputs, locals, mocks, importedNames),
+      ...collectCallOccurrences(expr.whenFalse, inputs, locals, mocks, importedNames),
+    ];
+  }
+
+  if (expr.type === 'IRProperty') {
+    return collectCallOccurrences(expr.object, inputs, locals, mocks, importedNames);
+  }
+
+  if (expr.type === 'IRArray') {
+    return (expr.elements ?? []).flatMap((element: IrExpr) => collectCallOccurrences(element, inputs, locals, mocks, importedNames));
+  }
+
+  if (expr.type === 'IRTypeOf') {
+    return collectCallOccurrences(expr.expr, inputs, locals, mocks, importedNames);
+  }
+
+  if (expr.type === 'IRTemplate') {
+    return (expr.parts ?? []).flatMap((part: IrExpr) => collectCallOccurrences(part, inputs, locals, mocks, importedNames));
+  }
+
+  if (expr.type === 'IRNew') {
+    return (expr.args ?? []).flatMap((arg: IrExpr) => collectCallOccurrences(arg, inputs, locals, mocks, importedNames));
+  }
+
+  return [];
+}
+
+function aggregateCallExpectations(
+  occurrences: Array<{ path: string[]; args: unknown[] }>,
+): Array<{ path: string[]; args: unknown[][] }> {
+  const byPath = new Map<string, { path: string[]; args: unknown[][] }>();
+
+  for (const occurrence of occurrences) {
+    const key = occurrence.path.join('>');
+    const entry = byPath.get(key) ?? { path: occurrence.path, args: [] };
+    entry.args.push(occurrence.args);
+    byPath.set(key, entry);
+  }
+
+  return Array.from(byPath.values());
+}
+
 function evaluateExpr(
   expr: IrExpr | null | undefined,
   inputs: Record<string, unknown>,
@@ -1062,6 +1168,11 @@ function buildCase(
           ...((expandedOutcome as { stateDescriptions?: Record<string, string> }).stateDescriptions ?? {}),
         },
         mocks: expandedOutcome.mocks,
+        callExpectations: aggregateCallExpectations([
+          ...((path.effects ?? []).flatMap((effect) => collectCallOccurrences(effect.expr, caseInputs, locals, expandedOutcome.mocks, importedNames))),
+          ...(path.constraints ?? []).flatMap((constraint) => collectCallOccurrences(constraint.expr, caseInputs, locals, expandedOutcome.mocks, importedNames)),
+          ...collectCallOccurrences(path.outcome.expr, caseInputs, locals, expandedOutcome.mocks, importedNames),
+        ]),
         expected: path.outcome.type === 'throw'
           ? {
               type: 'throw' as const,
