@@ -21,6 +21,8 @@ export default [
     rules: {
       quotes: ['warn', 'backtick', { avoidEscape: true }],
       '@typescript-eslint/no-explicit-any': 'warn',
+      'no-magic-numbers': 'off',
+      '@typescript-eslint/no-magic-numbers': 'warn',
       'no-restricted-syntax': [
         'warn',
         {
