@@ -57,7 +57,7 @@ type TestCaseSpecificationOptions = {
   paramsByFunction?: Record<string, Array<string | { name: string; type?: string }>>;
 };
 
-type InferredType = 'boolean' | 'number' | 'string' | 'object' | 'unknown';
+type InferredType = 'boolean' | 'number' | 'string' | 'object' | 'nullable-object' | 'unknown';
 
 type ParamMeta = {
   name: string;
@@ -201,17 +201,47 @@ function normalizeParams(params: Array<string | { name: string; type?: string }>
   });
 }
 
+function inferTypeFromDeclaredType(type: string | undefined): InferredType {
+  if (!type) return 'unknown';
+
+  const normalized = type.replace(/\?$/, '').trim();
+  if (!normalized) return 'unknown';
+
+  const allParts = normalized
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const allowsNullish = allParts.includes('null') || allParts.includes('undefined');
+  const unionParts = allParts.filter((part) => part !== 'null' && part !== 'undefined');
+
+  const parts = unionParts.length ? unionParts : [normalized];
+
+  if (parts.includes('boolean')) return 'boolean';
+  if (parts.includes('number')) return 'number';
+  if (parts.includes('string')) return 'string';
+
+  if (parts.some((part) => part === 'object' || part.startsWith('{') || part.endsWith('[]'))) {
+    return allowsNullish ? 'nullable-object' : 'object';
+  }
+
+  return 'unknown';
+}
+
 function defaultFromDeclaredType(type: string | undefined, name: string): unknown {
   if (!type) return `${name}_value`;
 
   const normalized = type.replace(/\?$/, '').trim();
+  const allParts = normalized.split('|').map((part) => part.trim()).filter(Boolean);
+  const parts = allParts.filter((part) => part !== 'null' && part !== 'undefined');
+  const primaryType = parts[0] ?? allParts[0] ?? normalized;
 
-  if (normalized === 'boolean') return false;
-  if (normalized === 'number') return 1;
-  if (normalized === 'string') return `${name}_value`;
+  if (parts.includes('boolean') || primaryType === 'boolean') return false;
+  if (parts.includes('number') || primaryType === 'number') return 1;
+  if (parts.includes('string') || primaryType === 'string') return `${name}_value`;
 
-  if (normalized.startsWith('{') && normalized.endsWith('}')) {
-    const content = normalized.slice(1, -1).trim();
+  if (primaryType.startsWith('{') && primaryType.endsWith('}')) {
+    const content = primaryType.slice(1, -1).trim();
     if (!content) return {};
 
     const objectValue: Record<string, unknown> = {};
@@ -238,12 +268,25 @@ function defaultFromDeclaredType(type: string | undefined, name: string): unknow
     return objectValue;
   }
 
+  if (parts.some((part) => part === 'object' || part.endsWith('[]'))) {
+    return {};
+  }
+
+  if (allParts.length === 1 && allParts[0] === 'null') {
+    return null;
+  }
+
   return `${name}_value`;
 }
 
 function fillMissingParams(inputs: Record<string, unknown>, params: ParamMeta[], typeMap: Record<string, InferredType>) {
   for (const param of params) {
     if (!(param.name in inputs)) {
+      if (param.type) {
+        inputs[param.name] = defaultFromDeclaredType(param.type, param.name);
+        continue;
+      }
+
       const inferredType = typeMap[param.name] ?? 'unknown';
       if (inferredType !== 'unknown') {
         inputs[param.name] = defaultValueForVar(param.name, inferredType);
@@ -318,7 +361,7 @@ function truthyValueForType(name: string, inferredType: InferredType): unknown {
   if (inferredType === 'boolean') return true;
   if (inferredType === 'number') return 1;
   if (inferredType === 'string') return `${name}_value`;
-  if (inferredType === 'object') return {};
+  if (inferredType === 'object' || inferredType === 'nullable-object') return {};
   return true;
 }
 
@@ -326,7 +369,7 @@ function falsyValueForType(inferredType: InferredType): unknown {
   if (inferredType === 'boolean') return false;
   if (inferredType === 'number') return 0;
   if (inferredType === 'string') return '';
-  if (inferredType === 'object') return null;
+  if (inferredType === 'nullable-object') return null;
   return false;
 }
 
@@ -698,6 +741,20 @@ function aggregateCallExpectations(
   return Array.from(byPath.values());
 }
 
+function doesConstraintMatch(expr: IrExpr | null | undefined, expected: boolean, evaluatedValue: unknown): boolean {
+  if (!expr) return false;
+
+  if (typeof evaluatedValue === 'boolean') {
+    return evaluatedValue === expected;
+  }
+
+  if (expr.type === 'IRVar' || expr.type === 'IRProperty') {
+    return Boolean(evaluatedValue) === expected;
+  }
+
+  return evaluatedValue === expected;
+}
+
 function evaluateExpr(
   expr: IrExpr | null | undefined,
   inputs: Record<string, unknown>,
@@ -874,8 +931,27 @@ function satisfyExpr(
   if (!expr) return;
 
   if (expr.type === 'IRUnary' && expr.op === '!' && expr.expr?.type === 'IRVar') {
-    markType(typeMap, expr.expr.name, 'boolean');
-    assignVar(inputs, expr.expr.name, !expected);
+    const inferredType = typeMap[expr.expr.name] ?? 'unknown';
+
+    if (inferredType === 'unknown') {
+      markType(typeMap, expr.expr.name, 'boolean');
+      assignVar(inputs, expr.expr.name, !expected);
+      return;
+    }
+
+    if (inferredType === 'object') {
+      // Non-null object types cannot satisfy falsy checks without violating type contracts.
+      return;
+    }
+
+    assignVar(
+      inputs,
+      expr.expr.name,
+      (!expected)
+        ? truthyValueForType(expr.expr.name, inferredType)
+        : falsyValueForType(inferredType),
+      true,
+    );
     return;
   }
 
@@ -885,6 +961,11 @@ function satisfyExpr(
     if (inferredType === 'unknown') {
       markType(typeMap, expr.name, 'boolean');
       assignVar(inputs, expr.name, expected);
+      return;
+    }
+
+    if (inferredType === 'object') {
+      // Keep object values sourced from declared parameter types; impossible falsy branches are filtered later.
       return;
     }
 
@@ -1130,6 +1211,10 @@ function buildCase(
   const typeMap: Record<string, InferredType> = {};
   const importedNames = new Set<string>(imports.flatMap((item) => item.names));
 
+  for (const param of params) {
+    markType(typeMap, param.name, inferTypeFromDeclaredType(param.type));
+  }
+
   for (const constraint of path.constraints) {
     collectExprTypes(constraint.expr, typeMap);
   }
@@ -1145,8 +1230,8 @@ function buildCase(
   for (const state of inputStates) {
     const baseInputs = { ...state.inputs };
     const baseStateDescriptions = { ...state.stateDescriptions };
-    fillMissingInputs(baseInputs, typeMap);
     fillMissingParams(baseInputs, params, typeMap);
+    fillMissingInputs(baseInputs, typeMap);
 
     const expandedOutcomes = expandExpectedOutcomes(path.outcome.expr, baseInputs, locals, importedNames);
 
@@ -1156,8 +1241,20 @@ function buildCase(
         ...(expandedOutcome.inputs ?? {}),
       };
 
-      fillMissingInputs(caseInputs, typeMap);
       fillMissingParams(caseInputs, params, typeMap);
+      fillMissingInputs(caseInputs, typeMap);
+
+      const constraintsSatisfied = (path.constraints ?? []).every((constraint) =>
+        doesConstraintMatch(
+          constraint.expr,
+          constraint.value,
+          evaluateExpr(constraint.expr, caseInputs, locals, expandedOutcome.mocks),
+        ),
+      );
+
+      if (!constraintsSatisfied) {
+        continue;
+      }
 
       cases.push({
         id: `C${index + 1}.${cases.length + 1}`,

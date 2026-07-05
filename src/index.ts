@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createAst } from './ast';
 import { createCfg } from './cfg';
 import { createJestTests } from './generator/jest';
+import { buildTestGenerationInput } from './generator/model';
 import { createVitestTests } from './generator/vitest';
 import { createTestCaseSpecification } from './test-case-specification';
 import { createIr } from './ir';
@@ -39,24 +40,17 @@ export function createTests(
   const paths = createPath(cfg);
   const testCaseSpecification = createTestCaseSpecification(paths, { paramsByFunction });
 
-  const functionNames = astFunctions.map((item: any) => item.name).filter(Boolean);
-  const parameterOrderByFunction = astFunctions.reduce((accumulator: Record<string, string[]>, item: any) => {
-    accumulator[item.name] = (item.params ?? []).map((param: { name: string }) => param.name);
-    return accumulator;
-  }, {});
-
-  const generatorOptions = {
-    functionName: functionNames[0] ?? 'sut',
-    parameterOrder: parameterOrderByFunction[functionNames[0]] ?? [],
-    functionNames,
-    parameterOrderByFunction,
+  const generationInput = buildTestGenerationInput({
     sourceFilePath: absoluteInputPath,
     outputFilePath: absoluteOutputPath,
-  };
+    astFunctions,
+    paths,
+    testCaseSpecifications: testCaseSpecification,
+  });
 
   const testFileContent =
-    options.runner === 'vitest' ? createVitestTests(testCaseSpecification, generatorOptions) :
-    createJestTests(testCaseSpecification, generatorOptions);
+    options.runner === 'vitest' ? createVitestTests(generationInput) :
+    createJestTests(generationInput);
 
   const outputDir = path.dirname(absoluteOutputPath);
   mkdirSync(outputDir, { recursive: true });

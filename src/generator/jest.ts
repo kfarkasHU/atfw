@@ -1,16 +1,7 @@
 import path from 'node:path';
-import { TestCaseSpecification, TestCaseSpecifications } from './model';
+import { TestCaseSpecification, TestGenerationInput } from './model';
 
 type CallExpectation = NonNullable<TestCaseSpecification['cases'][number]['callExpectations']>[number];
-
-type JestGeneratorOptions = {
-  functionName: string;
-  parameterOrder: string[];
-  functionNames?: string[];
-  parameterOrderByFunction?: Record<string, string[]>;
-  sourceFilePath: string;
-  outputFilePath: string;
-};
 
 function stripExtension(filePath: string): string {
   const extension = path.extname(filePath);
@@ -101,13 +92,13 @@ function toOutcomeMessage(testCase: TestCaseSpecification['cases'][number]): str
 
 function buildMockModuleDeclarations(
   specs: TestCaseSpecification[],
-  options: JestGeneratorOptions,
+  input: TestGenerationInput,
 ): string[] {
   const modules = new Map<string, Set<string>>();
 
   for (const spec of specs) {
     for (const importSpec of spec.imports ?? []) {
-      const resolvedSpecifier = resolveImportSpecifier(importSpec.module, options.sourceFilePath, options.outputFilePath);
+      const resolvedSpecifier = resolveImportSpecifier(importSpec.module, input.sourceFilePath, input.outputFilePath);
       const names = modules.get(resolvedSpecifier) ?? new Set<string>();
 
       for (const name of importSpec.names ?? []) {
@@ -126,13 +117,13 @@ function buildMockModuleDeclarations(
 
 function buildMockImportStatements(
   specs: TestCaseSpecification[],
-  options: JestGeneratorOptions,
+  input: TestGenerationInput,
 ): string[] {
   const modules = new Map<string, Set<string>>();
 
   for (const spec of specs) {
     for (const importSpec of spec.imports ?? []) {
-      const resolvedSpecifier = resolveImportSpecifier(importSpec.module, options.sourceFilePath, options.outputFilePath);
+      const resolvedSpecifier = resolveImportSpecifier(importSpec.module, input.sourceFilePath, input.outputFilePath);
       const names = modules.get(resolvedSpecifier) ?? new Set<string>();
 
       for (const name of importSpec.names ?? []) {
@@ -322,20 +313,20 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
   ].join('\n');
 }
 
-export function createJestTests(spec: TestCaseSpecification | TestCaseSpecifications, options: JestGeneratorOptions): string {
-  const importSpecifier = toImportSpecifier(options.outputFilePath, options.sourceFilePath);
-  const specs = Array.isArray(spec) ? spec : [spec];
-  const functionNames = options.functionNames && options.functionNames.length
-    ? options.functionNames
+export function createJestTests(input: TestGenerationInput): string {
+  const importSpecifier = toImportSpecifier(input.outputFilePath, input.sourceFilePath);
+  const specs = input.specs ?? [];
+  const functionNames = input.functionNames?.length
+    ? input.functionNames
     : specs.map((item) => item.function).filter(Boolean);
 
-  const importList = functionNames.length ? functionNames : [options.functionName];
-  const mockImports = buildMockImportStatements(specs, options);
-  const mockDeclarations = buildMockModuleDeclarations(specs, options);
+  const importList = functionNames.length ? functionNames : [input.functionName];
+  const mockImports = buildMockImportStatements(specs, input);
+  const mockDeclarations = buildMockModuleDeclarations(specs, input);
 
   const suites = specs.map((singleSpec) => {
-    const callableName = singleSpec.function ?? options.functionName;
-    const parameterOrder = options.parameterOrderByFunction?.[callableName] ?? options.parameterOrder;
+    const callableName = singleSpec.function ?? input.functionName;
+    const parameterOrder = input.parameterOrderByFunction?.[callableName] ?? input.parameterOrder;
 
     return buildSuite(singleSpec, callableName, parameterOrder);
   });

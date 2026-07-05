@@ -13,8 +13,16 @@ INPUT_FILES=(
   test/array-includes-value.ts
   test/array-is-empty.ts
   test/array-length-at-least-two.ts
+  test/array-length-equals-one.ts
+  test/array-length-not-two.ts
   test/boolean-constraints.ts
   test/call-flow.ts
+  test/comparison-gt-ten.ts
+  test/comparison-gte-zero.ts
+  test/comparison-lt-zero.ts
+  test/comparison-lte-five.ts
+  test/equality-number-forty-two.ts
+  test/equality-string-yes.ts
   test/if-falsy.ts
   test/if-truthy.ts
   test/if-true.ts
@@ -34,8 +42,26 @@ INPUT_FILES=(
   test/is-string.ts
   test/is-true.ts
   test/is-zero.ts
+  test/logical-and-boolean.ts
+  test/logical-not-flag.ts
+  test/logical-or-boolean.ts
+  test/null-equality.ts
   test/numeric-boundaries.ts
   test/noop.ts
+  test/pure-falsy-number.ts
+  test/pure-falsy-string.ts
+  test/pure-truthy-object.ts
+  test/pure-truthy-string.ts
+  test/ternary-by-flag.ts
+  test/ternary-by-number.ts
+  test/throws-on-zero.ts
+  test/truthy-object.ts
+  test/truthy-string.ts
+  test/typeguard-empty-string.ts
+  test/typeguard-is-nil.ts
+  test/typeof-number-check.ts
+  test/typeof-string-check.ts
+  test/undefined-equality.ts
 )
 
 GREEN='\033[0;32m'
