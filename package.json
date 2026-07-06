@@ -7,7 +7,12 @@
   "files": [
     "dist"
   ],
+  "workspaces": [
+    "."
+  ],
+  "packageManager": "npm@11.17.0",
   "scripts": {
+    "deps:lint": "sherif -r root-package-private-field -r root-package-dependencies",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "dev": "tsx src/cli.ts",
@@ -17,7 +22,8 @@
     "test:jest": "jest --config jest.config.ts --coverage",
     "test:vitest": "vitest --config vitest.config.ts run --coverage",
     "gha:build": "tsc -p tsconfig.json",
-    "gha:lint": "eslint ."
+    "gha:lint": "eslint .",
+    "gha:deps": "sherif -r root-package-private-field -r root-package-dependencies"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
@@ -26,12 +32,13 @@
     "@vitest/coverage-v8": "^3.2.6",
     "commit-and-tag-version": "^12.6.0",
     "eslint": "^9.31.0",
-    "jest": "^30.0.5",
     "globals": "^16.3.0",
+    "jest": "^30.0.5",
+    "sherif": "^1.13.0",
     "ts-jest": "^29.4.1",
-    "typescript-eslint": "^8.38.0",
     "tsx": "^4.22.4",
     "typescript": "^5.9.2",
+    "typescript-eslint": "^8.38.0",
     "vitest": "^3.2.4"
   },
   "volta": {
