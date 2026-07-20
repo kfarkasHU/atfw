@@ -20,5 +20,8 @@ jobs:
       - name: Build
         run: npm run gha:build
 
+      - name: Lint
+        run: npm run gha:lint
+
       - name: Run Generated Test Harness
         run: bash ./test-against-all.sh
