@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { TestCaseSpecification, TestGenerationInput } from './model';
+import { HEADER } from './header.const';
 
 type CallExpectation = NonNullable<TestCaseSpecification[`cases`][number][`callExpectations`]>[number];
 
@@ -328,6 +329,7 @@ export function createJestTests(input: TestGenerationInput): string {
   });
 
   return [
+    HEADER,
     `import { ${importList.join(`, `)} } from ${JSON.stringify(importSpecifier)};`,
     ...mockImports,
     ...mockDeclarations,
