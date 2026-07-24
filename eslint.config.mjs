@@ -21,6 +21,13 @@ export default [
     rules: {
       quotes: ['warn', 'backtick', { avoidEscape: true }],
       '@typescript-eslint/no-explicit-any': 'warn',
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: 'TSUnknownKeyword',
+          message: 'Using `unknown` is not allowed in this codebase.',
+        },
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
