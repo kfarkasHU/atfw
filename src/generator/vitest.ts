@@ -6,7 +6,8 @@ type CallExpectation = NonNullable<TestCaseSpecification[`cases`][number][`callE
 
 function stripExtension(filePath: string): string {
   const extension = path.extname(filePath);
-  return extension ? filePath.slice(0, -extension.length) : filePath;
+  const scriptExtensions = new Set([`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`]);
+  return scriptExtensions.has(extension) ? filePath.slice(0, -extension.length) : filePath;
 }
 
 function toImportSpecifier(outputFilePath: string, sourceFilePath: string): string {
