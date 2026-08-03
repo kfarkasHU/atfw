@@ -9,6 +9,7 @@ type FileInputTuple = [string, string];
 type CliConfig = {
 	debugOutput?: boolean;
 	runner?: Runner;
+	customHeader?: string | string[];
 	inputs?: FileInputTuple[];
 	fileInputs?: FileInputTuple[];
 	inputFilePath?: string;
@@ -61,6 +62,24 @@ function loadConfig(configArg: string): CliConfig {
 	}
 
 	return parsedConfig as CliConfig;
+}
+
+function normalizeCustomHeader(value: unknown): string | undefined {
+	if (value === undefined || value === null) return undefined;
+
+	if (typeof value === `string`) {
+		return value;
+	}
+
+	if (Array.isArray(value)) {
+		if (!value.every((item) => typeof item === `string`)) {
+			throw new Error(`Invalid config: customHeader array must contain only strings`);
+		}
+
+		return value.join(`\n`);
+	}
+
+	throw new Error(`Invalid config: customHeader must be a string or string[]`);
 }
 
 function parseArgs(args: string[]) {
@@ -127,6 +146,7 @@ function parseArgs(args: string[]) {
 		const configDebugOutput = typeof config.debugOutput === `boolean`
 			? config.debugOutput
 			: undefined;
+		const configCustomHeader = normalizeCustomHeader(config.customHeader);
 
 		const inputTuples = normalizeInputTuples(config.inputs ?? config.fileInputs ?? []);
 		if (!inputTuples.length) {
@@ -137,6 +157,7 @@ function parseArgs(args: string[]) {
 					runner,
 					configDebugOutput,
 					configRunner,
+					configCustomHeader,
 				};
 			}
 
@@ -149,6 +170,7 @@ function parseArgs(args: string[]) {
 			runner,
 			configDebugOutput,
 			configRunner,
+			configCustomHeader,
 		};
 	}
 
@@ -161,7 +183,7 @@ function parseArgs(args: string[]) {
 	};
 }
 
-const { inputs, debugOutput, runner, configDebugOutput, configRunner } = parseArgs(process.argv.slice(2));
+const { inputs, debugOutput, runner, configDebugOutput, configRunner, configCustomHeader } = parseArgs(process.argv.slice(2));
 
 if (!inputs.length) throw new Error(`Input file path is required`);
 
@@ -169,6 +191,10 @@ const finalDebugOutput = configDebugOutput ?? debugOutput;
 const finalRunner = configRunner ?? runner;
 
 for (const [inputFilePath, outputFilePath] of inputs) {
-	const writtenFile = createTests(inputFilePath, outputFilePath, { debugOutput: finalDebugOutput, runner: finalRunner });
+	const writtenFile = createTests(inputFilePath, outputFilePath, {
+		debugOutput: finalDebugOutput,
+		runner: finalRunner,
+		customHeader: configCustomHeader,
+	});
 	if (finalDebugOutput) console.log(writtenFile);
 }

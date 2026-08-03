@@ -39,6 +39,10 @@ The config supports the same CLI options, and file inputs must be provided as an
 {
 	"runner": "jest",
 	"debugOutput": true,
+	"customHeader": [
+		"/* eslint-disable @typescript-eslint/no-explicit-any */",
+		"// @ts-nocheck"
+	],
 	"inputs": [
 		["test/testfile.ts", "generated/jest/testfile.spec.ts"],
 		["test/import-test.ts", "generated/jest/import-test.spec.ts"]

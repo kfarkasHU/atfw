@@ -13,7 +13,15 @@ import { Runner } from './runner.type';
 type WriteOptions = {
   debugOutput: boolean;
   runner: Runner;
+  customHeader?: string;
 };
+
+function applyCustomHeader(content: string, customHeader?: string): string {
+  if (!customHeader) return content;
+
+  const normalized = customHeader.endsWith(`\n`) ? customHeader : `${customHeader}\n`;
+  return `${normalized}${content}`;
+}
 
 export function createTests(
   inputFilePath: string,
@@ -48,9 +56,10 @@ export function createTests(
     testCaseSpecifications: testCaseSpecification,
   });
 
-  const testFileContent =
+  const generatedTestFileContent =
     options.runner === `vitest` ? createVitestTests(generationInput) :
     createJestTests(generationInput);
+  const testFileContent = applyCustomHeader(generatedTestFileContent, options.customHeader);
 
   const outputDir = path.dirname(absoluteOutputPath);
   mkdirSync(outputDir, { recursive: true });
