@@ -53,8 +53,8 @@ type ConstraintsOutput = {
 };
 
 type TestCaseSpecificationOptions = {
-  params?: Array<string | { name: string; type?: string }>;
-  paramsByFunction?: Record<string, Array<string | { name: string; type?: string }>>;
+  params?: Array<string | { name: string; type?: string; defaultValue?: unknown }>;
+  paramsByFunction?: Record<string, Array<string | { name: string; type?: string; defaultValue?: unknown }>>;
 };
 
 type InferredType = `boolean` | `number` | `string` | `object` | `nullable-object` | `unknown`;
@@ -62,6 +62,7 @@ type InferredType = `boolean` | `number` | `string` | `object` | `nullable-objec
 type ParamMeta = {
   name: string;
   type?: string;
+  defaultValue?: unknown;
 };
 
 type ConstraintState = {
@@ -191,14 +192,57 @@ function fillMissingInputs(inputs: Record<string, unknown>, typeMap: Record<stri
   }
 }
 
-function normalizeParams(params: Array<string | { name: string; type?: string }>): ParamMeta[] {
+function normalizeParams(params: Array<string | { name: string; type?: string; defaultValue?: unknown }>): ParamMeta[] {
   return params.map((param) => {
     if (typeof param === `string`) {
       return { name: param };
     }
 
-    return { name: param.name, type: param.type };
+    return { name: param.name, type: param.type, defaultValue: param.defaultValue };
   });
+}
+
+function cloneValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneValue(item));
+  }
+
+  if (value && typeof value === `object`) {
+    const clone: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      clone[key] = cloneValue(entry);
+    }
+    return clone;
+  }
+
+  return value;
+}
+
+function mergeMissingFields(current: unknown, defaults: unknown): unknown {
+  if (Array.isArray(current) || Array.isArray(defaults)) {
+    return current;
+  }
+
+  if (
+    current && typeof current === `object`
+    && defaults && typeof defaults === `object`
+  ) {
+    const currentObject = { ...(current as Record<string, unknown>) };
+    const defaultObject = defaults as Record<string, unknown>;
+
+    for (const [key, defaultEntry] of Object.entries(defaultObject)) {
+      if (!(key in currentObject)) {
+        currentObject[key] = cloneValue(defaultEntry);
+        continue;
+      }
+
+      currentObject[key] = mergeMissingFields(currentObject[key], defaultEntry);
+    }
+
+    return currentObject;
+  }
+
+  return current;
 }
 
 function inferTypeFromDeclaredType(type: string | undefined): InferredType {
@@ -281,18 +325,28 @@ function defaultFromDeclaredType(type: string | undefined, name: string): unknow
 
 function fillMissingParams(inputs: Record<string, unknown>, params: ParamMeta[], typeMap: Record<string, InferredType>) {
   for (const param of params) {
-    if (!(param.name in inputs)) {
-      if (param.type) {
-        inputs[param.name] = defaultFromDeclaredType(param.type, param.name);
-        continue;
+    if (param.name in inputs) {
+      if (param.defaultValue !== undefined) {
+        inputs[param.name] = mergeMissingFields(inputs[param.name], param.defaultValue);
       }
+      continue;
+    }
 
-      const inferredType = typeMap[param.name] ?? `unknown`;
-      if (inferredType !== `unknown`) {
-        inputs[param.name] = defaultValueForVar(param.name, inferredType);
-      } else {
-        inputs[param.name] = defaultFromDeclaredType(param.type, param.name);
-      }
+    if (param.defaultValue !== undefined) {
+      inputs[param.name] = cloneValue(param.defaultValue);
+      continue;
+    }
+
+    if (param.type) {
+      inputs[param.name] = defaultFromDeclaredType(param.type, param.name);
+      continue;
+    }
+
+    const inferredType = typeMap[param.name] ?? `unknown`;
+    if (inferredType !== `unknown`) {
+      inputs[param.name] = defaultValueForVar(param.name, inferredType);
+    } else {
+      inputs[param.name] = defaultFromDeclaredType(param.type, param.name);
     }
   }
 }

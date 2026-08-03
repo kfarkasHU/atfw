@@ -204,6 +204,57 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
   };
 }
 
+function sampleValueFromType(type: any, seed: string, depth = 0): any {
+  if (!type) return `${seed}_value`;
+  if (depth > 4) return {};
+
+  const typeText = type.getText?.()?.trim?.() ?? ``;
+  if ([`boolean`, `true`, `false`, `Boolean`].includes(typeText)) return false;
+  if ([`number`, `Number`].includes(typeText)) return 1;
+  if ([`string`, `String`].includes(typeText)) return `${seed}_value`;
+
+  if (type.isUnion?.()) {
+    const candidate = type.getUnionTypes?.().find((item: any) => !item.isNull?.() && !item.isUndefined?.());
+    if (candidate) {
+      return sampleValueFromType(candidate, seed, depth + 1);
+    }
+  }
+
+  if (type.isBoolean?.()) return false;
+  if (type.isNumber?.()) return 1;
+  if (type.isString?.()) return `${seed}_value`;
+  if (type.isArray?.() || type.isTuple?.()) return [];
+
+  const callSignatures = type.getCallSignatures?.() ?? [];
+  if (callSignatures.length) {
+    return `${seed}_value`;
+  }
+
+  const properties = type.getProperties?.() ?? [];
+  if (properties.length) {
+    const objectValue: Record<string, any> = {};
+
+    for (const property of properties) {
+      const propertyName = property.getName?.();
+      if (!propertyName) continue;
+
+      const declarations = property.getDeclarations?.() ?? [];
+      const declaration = declarations[0];
+      const propertyType = declaration?.getType?.() ?? property.getTypeAtLocation?.(declaration);
+      const propertySample = sampleValueFromType(propertyType, propertyName, depth + 1);
+
+      if (propertySample !== undefined) {
+        objectValue[propertyName] = propertySample;
+      }
+    }
+
+    return objectValue;
+  }
+
+  if (type.isObject?.()) return {};
+  return `${seed}_value`;
+}
+
 function toParameterNode(parameter: any): any {
   const typeNode = parameter.getTypeNode();
   const typeName = typeNode?.getText() ?? parameter.getType().getText() ?? `any`;
@@ -213,6 +264,7 @@ function toParameterNode(parameter: any): any {
     name: parameter.getName(),
     type: optional ? `${typeName}?` : typeName,
     optional,
+    defaultValue: sampleValueFromType(parameter.getType(), parameter.getName()),
   };
 }
 

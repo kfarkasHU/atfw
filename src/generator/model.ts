@@ -39,7 +39,7 @@ export type PathResult = {
 
 export type AstFunction = {
   name: string;
-  params?: Array<{ name: string }>;
+  params?: Array<{ name: string; type?: string }>;
 };
 
 export type TestGenerationInput = {
@@ -50,6 +50,7 @@ export type TestGenerationInput = {
   functionNames: string[];
   parameterOrder: string[];
   parameterOrderByFunction: Record<string, string[]>;
+  parameterTypeByFunction: Record<string, Record<string, string | undefined>>;
 };
 
 type BuildTestGenerationInputArgs = {
@@ -112,6 +113,13 @@ export function buildTestGenerationInput(args: BuildTestGenerationInputArgs): Te
     accumulator[item.name] = (item.params ?? []).map((param) => param.name);
     return accumulator;
   }, {});
+  const parameterTypeByFunction = (args.astFunctions ?? []).reduce((accumulator: Record<string, Record<string, string | undefined>>, item) => {
+    accumulator[item.name] = (item.params ?? []).reduce((params, param) => {
+      params[param.name] = param.type;
+      return params;
+    }, {} as Record<string, string | undefined>);
+    return accumulator;
+  }, {});
 
   const functionName = functionNames[0] ?? specs[0]?.function ?? `sut`;
 
@@ -123,5 +131,6 @@ export function buildTestGenerationInput(args: BuildTestGenerationInputArgs): Te
     functionNames,
     parameterOrder: parameterOrderByFunction[functionName] ?? [],
     parameterOrderByFunction,
+    parameterTypeByFunction,
   };
 }

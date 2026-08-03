@@ -28,6 +28,9 @@ INPUT_FILES=(
   test/if-true.ts
   test/testfile.ts
   test/import-test.ts
+  test/imported-interface-source.ts
+  test/imported-type-source.ts
+  test/imported-class-source.ts
   test/is-array.ts
   test/is-boolean.ts
   test/is-defined.ts
@@ -57,6 +60,9 @@ INPUT_FILES=(
   test/throws-on-zero.ts
   test/truthy-object.ts
   test/truthy-string.ts
+  test/typed-param-inline-type.ts
+  test/typed-param-interface.ts
+  test/typed-param-class.ts
   test/typeguard-empty-string.ts
   test/typeguard-is-nil.ts
   test/typeof-number-check.ts

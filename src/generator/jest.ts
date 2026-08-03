@@ -47,6 +47,69 @@ function toIdentifier(value: string): string {
   return value.replace(/[^A-Za-z0-9_$]/g, `_`);
 }
 
+function toMockConstantName(value: string): string {
+  const identifier = toIdentifier(value)
+    .replace(/([a-z0-9])([A-Z])/g, `$1_$2`)
+    .replace(/_+/g, `_`)
+    .replace(/^_+|_+$/g, ``)
+    .toUpperCase();
+
+  return `MOCK_${identifier || `PARAM`}`;
+}
+
+function isPrimitiveTypeName(typeName: string): boolean {
+  const trimmed = typeName.trim();
+  const primitive = new Set([
+    `string`, `number`, `boolean`, `bigint`, `symbol`,
+    `null`, `undefined`, `void`, `never`, `unknown`, `any`,
+  ]);
+
+  if (primitive.has(trimmed)) return true;
+  if ((trimmed.startsWith(`'`) && trimmed.endsWith(`'`)) || (trimmed.startsWith(`\"`) && trimmed.endsWith(`\"`))) {
+    return true;
+  }
+  return /^\d+(\.\d+)?$/.test(trimmed);
+}
+
+function isTypedObjectParameter(typeName: string | undefined): boolean {
+  if (!typeName) return false;
+
+  const normalized = typeName.replace(/\?$/, ``).trim();
+  if (!normalized) return false;
+  if (normalized.includes(`=>`)) return false;
+
+  const unionParts = normalized
+    .split(`|`)
+    .map((part) => part.trim())
+    .filter((part) => part && part !== `null` && part !== `undefined`);
+
+  if (!unionParts.length) return false;
+  return unionParts.some((part) => !isPrimitiveTypeName(part));
+}
+
+function buildCaseArguments(
+  testCase: TestCaseSpecification[`cases`][number],
+  parameterOrder: string[],
+  parameterTypes: Record<string, string | undefined>,
+): { declarations: string[]; args: string } {
+  const declarations: string[] = [];
+
+  const args = parameterOrder.map((param) => {
+    const value = testCase.inputs[param];
+    const typeName = parameterTypes[param];
+
+    if (isTypedObjectParameter(typeName) && value !== null && typeof value === `object`) {
+      const variableName = toMockConstantName(param);
+      declarations.push(`        const ${variableName} = ${renderJsValue(value)};`);
+      return variableName;
+    }
+
+    return renderJsValue(value);
+  }).join(`, `);
+
+  return { declarations, args };
+}
+
 function stableSerialize(value: unknown): string {
   if (value === null || typeof value !== `object`) {
     return JSON.stringify(value);
@@ -246,11 +309,15 @@ function buildCallAssertionLines(callExpectations: CallExpectation[] | undefined
   });
 }
 
-function buildSuite(spec: TestCaseSpecification, callableName: string, parameterOrder: string[]): string {
+function buildSuite(
+  spec: TestCaseSpecification,
+  callableName: string,
+  parameterOrder: string[],
+  parameterTypes: Record<string, string | undefined>,
+): string {
   const testBlocks = (spec.cases ?? []).map((testCase) => {
-    const args = parameterOrder
-      .map((param) => renderJsValue(testCase.inputs[param]))
-      .join(`, `);
+    const caseArguments = buildCaseArguments(testCase, parameterOrder, parameterTypes);
+    const args = caseArguments.args;
     const stateMessage = toStateMessage(testCase, parameterOrder);
     const outcomeMessage = toOutcomeMessage(testCase);
 
@@ -260,6 +327,7 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
       return [
         `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
         beforeEachBlock,
+        ...caseArguments.declarations,
         `        it(${JSON.stringify(outcomeMessage)}, () => {`,
         `          expect(() => ${callableName}(${args})).toThrow(${JSON.stringify(testCase.expected.message ?? ``)});`,
         ...callAssertions,
@@ -274,6 +342,7 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
       return [
         `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
         beforeEachBlock,
+        ...caseArguments.declarations,
         `        it(${JSON.stringify(outcomeMessage)}, () => {`,
         `          const result = ${callableName}(${args});`,
         `          expect(result).toBeUndefined();`,
@@ -288,6 +357,7 @@ function buildSuite(spec: TestCaseSpecification, callableName: string, parameter
     return [
       `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
       beforeEachBlock,
+      ...caseArguments.declarations,
       `        it(${JSON.stringify(outcomeMessage)}, () => {`,
       `          const result = ${callableName}(${args});`,
       `          expect(result).toEqual(${renderJsValue(testCase.expected.value)});`,
@@ -329,8 +399,9 @@ export function createJestTests(input: TestGenerationInput): string {
   const suites = specs.map((singleSpec) => {
     const callableName = singleSpec.function ?? input.functionName;
     const parameterOrder = input.parameterOrderByFunction?.[callableName] ?? input.parameterOrder;
+    const parameterTypes = input.parameterTypeByFunction?.[callableName] ?? {};
 
-    return buildSuite(singleSpec, callableName, parameterOrder);
+    return buildSuite(singleSpec, callableName, parameterOrder, parameterTypes);
   });
 
   return [
