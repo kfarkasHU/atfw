@@ -66,13 +66,13 @@ export function createTests(
   writeFileSync(absoluteOutputPath, testFileContent, `utf-8`);
 
   if (options.debugOutput) {
-    const outputFileBase = path.basename(absoluteOutputPath, path.extname(absoluteOutputPath));
+    const outputFileName = path.basename(absoluteOutputPath);
 
-    writeFileSync(path.join(outputDir, `${outputFileBase}.ast.json`), JSON.stringify(ast, null, 2), `utf-8`);
-    writeFileSync(path.join(outputDir, `${outputFileBase}.ir.json`), JSON.stringify(ir, null, 2), `utf-8`);
-    writeFileSync(path.join(outputDir, `${outputFileBase}.cfg.json`), JSON.stringify(cfg, null, 2), `utf-8`);
-    writeFileSync(path.join(outputDir, `${outputFileBase}.path.json`), JSON.stringify(paths, null, 2), `utf-8`);
-    writeFileSync(path.join(outputDir, `${outputFileBase}.test-case-specification.json`), JSON.stringify(testCaseSpecification, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileName}.ast.json`), JSON.stringify(ast, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileName}.ir.json`), JSON.stringify(ir, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileName}.cfg.json`), JSON.stringify(cfg, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileName}.path.json`), JSON.stringify(paths, null, 2), `utf-8`);
+    writeFileSync(path.join(outputDir, `${outputFileName}.test-case-specification.json`), JSON.stringify(testCaseSpecification, null, 2), `utf-8`);
   }
 
   return absoluteOutputPath;

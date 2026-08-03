@@ -56,3 +56,17 @@ Run with either:
 atfw atfw.config.json
 atfw --config atfw.config.json
 ```
+
+## .gitignore example
+
+If you do not want generated specs and debug artifacts in source control, you can add:
+
+```gitignore
+
+# ATFW debug artifacts
+*.ast.json
+*.ir.json
+*.cfg.json
+*.path.json
+*.test-case-specification.json
+```
