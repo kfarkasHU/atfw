@@ -9,6 +9,8 @@ Just a tool.
 ```
 npm run dev -- test/testfile.ts generated/testfile.spec.ts --debug-output --runner jest
 npm run dev -- test/testfile.ts generated/testfile.spec.ts --debug-output --runner vitest
+npm run dev -- atfw.config.json
+npm run dev -- --config atfw.config.json
 ```
 
 ## CLI args
@@ -25,4 +27,28 @@ Supported `--runner` forms:
 ```bash
 --runner jest
 --runner vitest
+```
+
+## Config file
+
+You can run ATFW using a config file named `atfw.config.json`.
+
+The config supports the same CLI options, and file inputs must be provided as an array of tuples:
+
+```json
+{
+	"runner": "jest",
+	"debugOutput": true,
+	"inputs": [
+		["test/testfile.ts", "generated/jest/testfile.spec.ts"],
+		["test/import-test.ts", "generated/jest/import-test.spec.ts"]
+	]
+}
+```
+
+Run with either:
+
+```bash
+atfw atfw.config.json
+atfw --config atfw.config.json
 ```
