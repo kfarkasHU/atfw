@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.1.25 (2026-08-03)
+
+
+### Features
+
+* add more cases and diverge by folder ([5a99205](https://github.com/kfarkasHU/atfw/commit/5a992056604a81c7b7ff27dde6d3f80a40c652cb))
+* add noop test case ([d246a02](https://github.com/kfarkasHU/atfw/commit/d246a02dc8e3c3dc7465ab6caa37fc7f769ad54c))
+
+
+### Bug Fixes
+
+* non-internal imports ([19e9918](https://github.com/kfarkasHU/atfw/commit/19e9918dd19f1f8be58966d82793b996af9e8917)), closes [#2](https://github.com/kfarkasHU/atfw/issues/2) [#20](https://github.com/kfarkasHU/atfw/issues/20)
+
 ## 0.1.24 (2026-07-27)
 
 
