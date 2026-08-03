@@ -19,6 +19,10 @@ function toImportSpecifier(outputFilePath: string, sourceFilePath: string): stri
 }
 
 function resolveImportSpecifier(moduleSpecifier: string, sourceFilePath: string, outputFilePath: string): string {
+  if (!moduleSpecifier.startsWith(`.`)) {
+    return moduleSpecifier;
+  }
+
   const sourceDir = path.dirname(sourceFilePath);
   const fromDir = path.dirname(outputFilePath);
   const rebasedPath = path.join(path.relative(fromDir, sourceDir), moduleSpecifier);
