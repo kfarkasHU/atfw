@@ -111,7 +111,7 @@ for runner in "${RUNNERS[@]}"; do
     output="generated/${runner}/${stem}.spec.ts"
 
     echo "  [${runner}] ${input} → ${output}"
-    npx tsx src/cli.ts "$input" "$output" --runner "$runner"
+    npx tsx src/cli.ts "$input" "$output" --runner "$runner" --debug-output
   done
 done
 
