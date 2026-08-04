@@ -87,20 +87,74 @@ function isTypedObjectParameter(typeName: string | undefined): boolean {
   return unionParts.some((part) => !isPrimitiveTypeName(part));
 }
 
+function buildTypeImportStatements(input: TestGenerationInput): string[] {
+  const modules = new Map<string, Set<string>>();
+  const existingImports = new Map<string, Set<string>>();
+
+  for (const spec of input.specs ?? []) {
+    for (const importSpec of spec.imports ?? []) {
+      const moduleSpecifier = resolveImportSpecifier(importSpec.module, input.sourceFilePath, input.outputFilePath);
+      const names = existingImports.get(moduleSpecifier) ?? new Set<string>();
+
+      for (const name of importSpec.names ?? []) {
+        names.add(name);
+      }
+
+      existingImports.set(moduleSpecifier, names);
+    }
+  }
+
+  for (const [functionName, parameterRefs] of Object.entries(input.parameterTypeReferenceByFunction ?? {})) {
+    const parameterTypes = input.parameterTypeByFunction?.[functionName] ?? {};
+
+    for (const [parameterName, typeReference] of Object.entries(parameterRefs ?? {})) {
+      if (!typeReference || !isTypedObjectParameter(parameterTypes[parameterName])) continue;
+
+      const moduleSpecifier = typeReference.module === `.`
+        ? toImportSpecifier(input.outputFilePath, input.sourceFilePath)
+        : resolveImportSpecifier(typeReference.module, input.sourceFilePath, input.outputFilePath);
+      if (existingImports.get(moduleSpecifier)?.has(typeReference.name)) continue;
+      const names = modules.get(moduleSpecifier) ?? new Set<string>();
+      names.add(typeReference.name);
+      modules.set(moduleSpecifier, names);
+    }
+  }
+
+  return Array.from(modules.entries()).map(([moduleSpecifier, names]) => `import type { ${Array.from(names).join(`, `)} } from ${JSON.stringify(moduleSpecifier)};`);
+}
+
+function resolveMockTypeAnnotation(
+  callableName: string,
+  index: number,
+  parameterName: string,
+  parameterTypes: Record<string, string | undefined>,
+  parameterTypeReferences: Record<string, { name: string; module: string } | undefined>,
+): string {
+  const typeReference = parameterTypeReferences[parameterName];
+  if (typeReference && isTypedObjectParameter(parameterTypes[parameterName])) {
+    return typeReference.name;
+  }
+
+  return `Parameters<typeof ${callableName}>[${index}]`;
+}
+
 function buildCaseArguments(
+  callableName: string,
   testCase: TestCaseSpecification[`cases`][number],
   parameterOrder: string[],
   parameterTypes: Record<string, string | undefined>,
+  parameterTypeReferences: Record<string, { name: string; module: string } | undefined>,
 ): { declarations: string[]; args: string } {
   const declarations: string[] = [];
 
-  const args = parameterOrder.map((param) => {
+  const args = parameterOrder.map((param, index) => {
     const value = testCase.inputs[param];
     const typeName = parameterTypes[param];
 
     if (isTypedObjectParameter(typeName) && value !== null && typeof value === `object`) {
       const variableName = toMockConstantName(param);
-      declarations.push(`        const ${variableName} = ${renderJsValue(value)};`);
+      const typeAnnotation = resolveMockTypeAnnotation(callableName, index, param, parameterTypes, parameterTypeReferences);
+      declarations.push(`        const ${variableName}: ${typeAnnotation} = ${renderJsValue(value)};`);
       return variableName;
     }
 
@@ -298,9 +352,10 @@ function buildSuite(
   callableName: string,
   parameterOrder: string[],
   parameterTypes: Record<string, string | undefined>,
+  parameterTypeReferences: Record<string, { name: string; module: string } | undefined>,
 ): string {
   const testBlocks = (spec.cases ?? []).map((testCase) => {
-    const caseArguments = buildCaseArguments(testCase, parameterOrder, parameterTypes);
+    const caseArguments = buildCaseArguments(callableName, testCase, parameterOrder, parameterTypes, parameterTypeReferences);
     const args = caseArguments.args;
     const stateMessage = toStateMessage(testCase, parameterOrder);
     const outcomeMessage = toOutcomeMessage(testCase);
@@ -377,6 +432,7 @@ export function createVitestTests(input: TestGenerationInput): string {
     : specs.map((item) => item.function).filter(Boolean);
 
   const importList = functionNames.length ? functionNames : [input.functionName];
+  const typeImports = buildTypeImportStatements(input);
   const mockImports = buildMockImportStatements(specs, input);
   const mockDeclarations = buildMockModuleDeclarations(specs, input);
 
@@ -384,14 +440,16 @@ export function createVitestTests(input: TestGenerationInput): string {
     const callableName = singleSpec.function ?? input.functionName;
     const parameterOrder = input.parameterOrderByFunction?.[callableName] ?? input.parameterOrder;
     const parameterTypes = input.parameterTypeByFunction?.[callableName] ?? {};
+    const parameterTypeReferences = input.parameterTypeReferenceByFunction?.[callableName] ?? {};
 
-    return buildSuite(singleSpec, callableName, parameterOrder, parameterTypes);
+    return buildSuite(singleSpec, callableName, parameterOrder, parameterTypes, parameterTypeReferences);
   });
 
   return [
     HEADER,
     `import { beforeEach, describe, expect, it, vi } from 'vitest';`,
     `import { ${importList.join(`, `)} } from ${JSON.stringify(importSpecifier)};`,
+    ...typeImports,
     ...mockImports,
     ...mockDeclarations,
     ``,

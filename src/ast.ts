@@ -5,6 +5,11 @@ type ImportNode = {
   names: string[];
 };
 
+type ParamTypeReference = {
+  name: string;
+  module: string;
+};
+
 function stringValue(node: any): string {
   return node?.getText?.() ?? ``;
 }
@@ -255,7 +260,28 @@ function sampleValueFromType(type: any, seed: string, depth = 0): any {
   return `${seed}_value`;
 }
 
-function toParameterNode(parameter: any): any {
+function toParameterTypeReference(parameter: any, importMap: Map<string, string>, sourceExportNames: Set<string>): ParamTypeReference | undefined {
+  const typeNode = parameter.getTypeNode?.();
+  const typeNameNode = typeNode?.getTypeName?.();
+  const typeName = typeNameNode?.getText?.()?.trim?.();
+
+  if (!typeName || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(typeName)) {
+    return undefined;
+  }
+
+  const importedModule = importMap.get(typeName);
+  if (importedModule) {
+    return { name: typeName, module: importedModule };
+  }
+
+  if (sourceExportNames.has(typeName)) {
+    return { name: typeName, module: `.` };
+  }
+
+  return undefined;
+}
+
+function toParameterNode(parameter: any, importMap: Map<string, string>, sourceExportNames: Set<string>): any {
   const typeNode = parameter.getTypeNode();
   const typeName = typeNode?.getText() ?? parameter.getType().getText() ?? `any`;
   const optional = parameter.hasQuestionToken();
@@ -265,6 +291,7 @@ function toParameterNode(parameter: any): any {
     type: optional ? `${typeName}?` : typeName,
     optional,
     defaultValue: sampleValueFromType(parameter.getType(), parameter.getName()),
+    typeReference: toParameterTypeReference(parameter, importMap, sourceExportNames),
   };
 }
 
@@ -290,11 +317,20 @@ function toFunctionNode(functionDeclaration: any, imports: ImportNode[]): any {
       .map((parameter: any) => parameter.getName()),
   );
 
+  const importMap = new Map<string, string>(
+    imports.flatMap((item) => item.names.map((name) => [name, item.module] as const)),
+  );
+  const sourceFile = functionDeclaration.getSourceFile?.();
+  const sourceExportNames = new Set<string>(
+    (Array.from(sourceFile?.getExportedDeclarations?.().keys?.() ?? []) as string[])
+      .filter((name) => name !== functionDeclaration.getName()),
+  );
+
   return {
     type: `Function`,
     name: functionDeclaration.getName(),
     exported: functionDeclaration.hasModifier(SyntaxKind.ExportKeyword),
-    params: functionDeclaration.getParameters().map((parameter: any) => toParameterNode(parameter)),
+    params: functionDeclaration.getParameters().map((parameter: any) => toParameterNode(parameter, importMap, sourceExportNames)),
     imports,
     body: bodyStatements.map((statement: any) => toStatementNode(statement, optionalParams, functionDeclaration)),
   };
