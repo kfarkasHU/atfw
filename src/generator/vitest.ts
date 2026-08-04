@@ -3,6 +3,7 @@ import { TestCaseSpecification, TestGenerationInput } from './model';
 import { HEADER } from './header.const';
 
 type CallExpectation = NonNullable<TestCaseSpecification[`cases`][number][`callExpectations`]>[number];
+type SampleCallable = ((...args: unknown[]) => unknown) & { __atfwReturnValue?: unknown };
 
 function stripExtension(filePath: string): string {
   const extension = path.extname(filePath);
@@ -34,6 +35,25 @@ function resolveImportSpecifier(moduleSpecifier: string, sourceFilePath: string,
 }
 
 function renderJsValue(value: unknown): string {
+  if (typeof value === `function`) {
+    const callable = value as SampleCallable;
+    if (Object.prototype.hasOwnProperty.call(callable, `__atfwReturnValue`)) {
+      return `() => ${renderJsValue(callable.__atfwReturnValue)}`;
+    }
+
+    return value.toString();
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => renderJsValue(item)).join(`, `)}]`;
+  }
+
+  if (value && typeof value === `object`) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, entryValue]) => `${JSON.stringify(key)}: ${renderJsValue(entryValue)}`);
+    return `{${entries.join(`, `)}}`;
+  }
+
   if (typeof value === `string`) {
     if (value === `undefined`) return `undefined`;
     return JSON.stringify(value);
@@ -165,6 +185,15 @@ function buildCaseArguments(
 }
 
 function stableSerialize(value: unknown): string {
+  if (typeof value === `function`) {
+    const callable = value as SampleCallable;
+    if (Object.prototype.hasOwnProperty.call(callable, `__atfwReturnValue`)) {
+      return `() => ${stableSerialize(callable.__atfwReturnValue)}`;
+    }
+
+    return value.toString();
+  }
+
   if (value === null || typeof value !== `object`) {
     return JSON.stringify(value);
   }

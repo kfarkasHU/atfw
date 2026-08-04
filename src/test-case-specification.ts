@@ -853,6 +853,12 @@ function evaluateExpr(
       }
     }
 
+    const calleeValue = evaluateExpr(expr.callee, inputs, locals, mocks);
+    if (typeof calleeValue === `function`) {
+      const evaluatedArgs = (expr.args ?? []).map((arg: IrExpr) => evaluateExpr(arg, inputs, locals, mocks));
+      return calleeValue(...evaluatedArgs);
+    }
+
     return null;
   }
 

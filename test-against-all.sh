@@ -23,6 +23,13 @@ INPUT_FILES=(
   test/comparison-lte-five.ts
   test/equality-number-forty-two.ts
   test/equality-string-yes.ts
+  test/fn-prop-inline.ts
+  test/fn-prop-interface.ts
+  test/fn-prop-class.ts
+  test/fn-prop-nested-arrow.ts
+  test/fn-prop-imported-interface-source.ts
+  test/fn-prop-imported-type-source.ts
+  test/fn-prop-imported-class-source.ts
   test/if-falsy.ts
   test/if-truthy.ts
   test/if-true.ts

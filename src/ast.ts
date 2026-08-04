@@ -10,6 +10,16 @@ type ParamTypeReference = {
   module: string;
 };
 
+type SampleCallable = ((...args: unknown[]) => unknown) & {
+  __atfwReturnValue?: unknown;
+};
+
+function createSampleCallable(returnValue: unknown): SampleCallable {
+  const callable = (() => returnValue) as SampleCallable;
+  callable.__atfwReturnValue = returnValue;
+  return callable;
+}
+
 function stringValue(node: any): string {
   return node?.getText?.() ?? ``;
 }
@@ -232,7 +242,8 @@ function sampleValueFromType(type: any, seed: string, depth = 0): any {
 
   const callSignatures = type.getCallSignatures?.() ?? [];
   if (callSignatures.length) {
-    return `${seed}_value`;
+    const returnType = callSignatures[0]?.getReturnType?.();
+    return createSampleCallable(sampleValueFromType(returnType, `${seed}_result`, depth + 1));
   }
 
   const properties = type.getProperties?.() ?? [];
