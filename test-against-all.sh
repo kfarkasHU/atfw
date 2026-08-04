@@ -71,6 +71,10 @@ INPUT_FILES=(
   test/throws-on-zero.ts
   test/truthy-object.ts
   test/truthy-string.ts
+  test/typed-return-local.ts
+  test/typed-return-imported.ts
+  test/typed-return-identity-local.ts
+  test/typed-return-identity-imported.ts
   test/typed-param-inline-type.ts
   test/typed-param-interface.ts
   test/typed-param-class.ts

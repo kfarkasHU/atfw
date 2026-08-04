@@ -23,6 +23,14 @@ function toIrExpression(node: any): any {
         type: `IRArray`,
         elements: (node.elements ?? []).map((element: any) => toIrExpression(element)),
       };
+    case `ObjectLiteralExpression`:
+      return {
+        type: `IRObject`,
+        properties: (node.properties ?? []).map((property: any) => ({
+          name: property.name,
+          value: toIrExpression(property.value),
+        })),
+      };
     case `ConditionalExpression`:
       return {
         type: `IRConditional`,

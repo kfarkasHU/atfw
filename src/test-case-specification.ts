@@ -43,6 +43,7 @@ type ConstraintsCase = {
     type: `return` | `throw`;
     value?: unknown;
     message?: string;
+    sourceParam?: string;
   };
 };
 
@@ -823,6 +824,13 @@ function evaluateExpr(
     return (expr.elements ?? []).map((element: IrExpr) => evaluateExpr(element, inputs, locals, mocks));
   }
 
+  if (expr.type === `IRObject`) {
+    return Object.fromEntries((expr.properties ?? []).map((property: { name: string; value: IrExpr }) => [
+      property.name,
+      evaluateExpr(property.value, inputs, locals, mocks),
+    ]));
+  }
+
   if (expr.type === `IRTypeOf`) {
     return typeof evaluateExpr(expr.expr, inputs, locals, mocks);
   }
@@ -960,6 +968,11 @@ function expandExpectedOutcomes(
     return [{ value: evaluateExpr(expr, inputs, locals, mocks), mocks }];
   }
 
+  const directValue = evaluateExpr(expr, inputs, locals, mocks);
+  if (directValue !== null && (typeof directValue === `object` || typeof directValue === `function`)) {
+    return [{ value: directValue, mocks }];
+  }
+
   if (isBooleanLikeExpr(expr)) {
     const typeMap: Record<string, InferredType> = {};
     collectExprTypes(expr, typeMap);
@@ -974,7 +987,10 @@ function expandExpectedOutcomes(
     );
 
     if (outcomes.length) {
-      return outcomes.filter((outcome) => evaluateExpr(expr, { ...inputs, ...(outcome.inputs ?? {}) }, locals, outcome.mocks) === outcome.value);
+      const matchingOutcomes = outcomes.filter((outcome) => evaluateExpr(expr, { ...inputs, ...(outcome.inputs ?? {}) }, locals, outcome.mocks) === outcome.value);
+      if (matchingOutcomes.length) {
+        return matchingOutcomes;
+      }
     }
   }
 
@@ -1270,9 +1286,14 @@ function buildCase(
 ): ConstraintsCase[] {
   const typeMap: Record<string, InferredType> = {};
   const importedNames = new Set<string>(imports.flatMap((item) => item.names));
+  const parameterNames = new Set(params.map((param) => param.name));
 
   for (const param of params) {
     markType(typeMap, param.name, inferTypeFromDeclaredType(param.type));
+
+    if (param.defaultValue !== null && typeof param.defaultValue === `object` && !Array.isArray(param.defaultValue)) {
+      markType(typeMap, param.name, `object`);
+    }
   }
 
   for (const constraint of path.constraints) {
@@ -1338,6 +1359,9 @@ function buildCase(
           : {
               type: `return` as const,
               value: expandedOutcome.value,
+              sourceParam: path.outcome.expr?.type === `IRVar` && parameterNames.has(path.outcome.expr.name)
+                ? path.outcome.expr.name
+                : undefined,
             },
       });
     }

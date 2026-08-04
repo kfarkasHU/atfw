@@ -56,6 +56,31 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
         elements: expression.getElements().map((element: any) => toExpressionNode(element, optionalParams)),
       };
     }
+    case SyntaxKind.ObjectLiteralExpression: {
+      return {
+        type: `ObjectLiteralExpression`,
+        properties: expression.getProperties().flatMap((property: any) => {
+          if (property.getKind() === SyntaxKind.PropertyAssignment) {
+            return [{
+              name: property.getName(),
+              value: toExpressionNode(property.getInitializer(), optionalParams),
+            }];
+          }
+
+          if (property.getKind() === SyntaxKind.ShorthandPropertyAssignment) {
+            return [{
+              name: property.getName(),
+              value: {
+                type: `Identifier`,
+                name: property.getName(),
+              },
+            }];
+          }
+
+          return [];
+        }),
+      };
+    }
     case SyntaxKind.PrefixUnaryExpression: {
       return {
         type: `PrefixUnaryExpression`,
@@ -292,6 +317,26 @@ function toParameterTypeReference(parameter: any, importMap: Map<string, string>
   return undefined;
 }
 
+function toTypeReference(typeNode: any, importMap: Map<string, string>, sourceExportNames: Set<string>): ParamTypeReference | undefined {
+  const typeNameNode = typeNode?.getTypeName?.();
+  const typeName = typeNameNode?.getText?.()?.trim?.();
+
+  if (!typeName || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(typeName)) {
+    return undefined;
+  }
+
+  const importedModule = importMap.get(typeName);
+  if (importedModule) {
+    return { name: typeName, module: importedModule };
+  }
+
+  if (sourceExportNames.has(typeName)) {
+    return { name: typeName, module: `.` };
+  }
+
+  return undefined;
+}
+
 function toParameterNode(parameter: any, importMap: Map<string, string>, sourceExportNames: Set<string>): any {
   const typeNode = parameter.getTypeNode();
   const typeName = typeNode?.getText() ?? parameter.getType().getText() ?? `any`;
@@ -307,8 +352,12 @@ function toParameterNode(parameter: any, importMap: Map<string, string>, sourceE
 }
 
 function toImportNode(importDeclaration: any): ImportNode | null {
+  if (importDeclaration.isTypeOnly?.()) {
+    return null;
+  }
+
   const moduleSpecifier = importDeclaration.getModuleSpecifierValue?.();
-  const namedImports = importDeclaration.getNamedImports?.() ?? [];
+  const namedImports = (importDeclaration.getNamedImports?.() ?? []).filter((namedImport: any) => !namedImport.isTypeOnly?.());
 
   if (!moduleSpecifier || !namedImports.length) {
     return null;
@@ -328,10 +377,13 @@ function toFunctionNode(functionDeclaration: any, imports: ImportNode[]): any {
       .map((parameter: any) => parameter.getName()),
   );
 
-  const importMap = new Map<string, string>(
-    imports.flatMap((item) => item.names.map((name) => [name, item.module] as const)),
-  );
   const sourceFile = functionDeclaration.getSourceFile?.();
+  const allImportMap = new Map<string, string>(
+    (sourceFile?.getImportDeclarations?.() ?? []).flatMap((importDeclaration: any) => {
+      const moduleSpecifier = importDeclaration.getModuleSpecifierValue?.();
+      return (importDeclaration.getNamedImports?.() ?? []).map((namedImport: any) => [namedImport.getName(), moduleSpecifier] as const);
+    }),
+  );
   const sourceExportNames = new Set<string>(
     (Array.from(sourceFile?.getExportedDeclarations?.().keys?.() ?? []) as string[])
       .filter((name) => name !== functionDeclaration.getName()),
@@ -341,7 +393,9 @@ function toFunctionNode(functionDeclaration: any, imports: ImportNode[]): any {
     type: `Function`,
     name: functionDeclaration.getName(),
     exported: functionDeclaration.hasModifier(SyntaxKind.ExportKeyword),
-    params: functionDeclaration.getParameters().map((parameter: any) => toParameterNode(parameter, importMap, sourceExportNames)),
+    params: functionDeclaration.getParameters().map((parameter: any) => toParameterNode(parameter, allImportMap, sourceExportNames)),
+    returnType: functionDeclaration.getReturnTypeNode?.()?.getText?.() ?? functionDeclaration.getReturnType?.()?.getText?.() ?? `any`,
+    returnTypeReference: toTypeReference(functionDeclaration.getReturnTypeNode?.(), allImportMap, sourceExportNames),
     imports,
     body: bodyStatements.map((statement: any) => toStatementNode(statement, optionalParams, functionDeclaration)),
   };

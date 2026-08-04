@@ -12,6 +12,7 @@ type TestCase = {
     type: `return` | `throw`;
     value?: unknown;
     message?: string;
+    sourceParam?: string;
   };
 };
 
@@ -40,6 +41,8 @@ export type PathResult = {
 export type AstFunction = {
   name: string;
   params?: Array<{ name: string; type?: string; typeReference?: { name: string; module: string } }>;
+  returnType?: string;
+  returnTypeReference?: { name: string; module: string };
 };
 
 export type TestGenerationInput = {
@@ -52,6 +55,8 @@ export type TestGenerationInput = {
   parameterOrderByFunction: Record<string, string[]>;
   parameterTypeByFunction: Record<string, Record<string, string | undefined>>;
   parameterTypeReferenceByFunction: Record<string, Record<string, { name: string; module: string } | undefined>>;
+  returnTypeByFunction: Record<string, string | undefined>;
+  returnTypeReferenceByFunction: Record<string, { name: string; module: string } | undefined>;
 };
 
 type BuildTestGenerationInputArgs = {
@@ -128,6 +133,14 @@ export function buildTestGenerationInput(args: BuildTestGenerationInputArgs): Te
     }, {} as Record<string, { name: string; module: string } | undefined>);
     return accumulator;
   }, {});
+  const returnTypeByFunction = (args.astFunctions ?? []).reduce((accumulator: Record<string, string | undefined>, item) => {
+    accumulator[item.name] = item.returnType;
+    return accumulator;
+  }, {});
+  const returnTypeReferenceByFunction = (args.astFunctions ?? []).reduce((accumulator: Record<string, { name: string; module: string } | undefined>, item) => {
+    accumulator[item.name] = item.returnTypeReference;
+    return accumulator;
+  }, {});
 
   const functionName = functionNames[0] ?? specs[0]?.function ?? `sut`;
 
@@ -141,5 +154,7 @@ export function buildTestGenerationInput(args: BuildTestGenerationInputArgs): Te
     parameterOrderByFunction,
     parameterTypeByFunction,
     parameterTypeReferenceByFunction,
+    returnTypeByFunction,
+    returnTypeReferenceByFunction,
   };
 }

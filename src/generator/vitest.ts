@@ -140,6 +140,19 @@ function buildTypeImportStatements(input: TestGenerationInput): string[] {
     }
   }
 
+  for (const [functionName, typeReference] of Object.entries(input.returnTypeReferenceByFunction ?? {})) {
+    const returnType = input.returnTypeByFunction?.[functionName];
+    if (!typeReference || !isTypedObjectParameter(returnType)) continue;
+
+    const moduleSpecifier = typeReference.module === `.`
+      ? toImportSpecifier(input.outputFilePath, input.sourceFilePath)
+      : resolveImportSpecifier(typeReference.module, input.sourceFilePath, input.outputFilePath);
+    if (existingImports.get(moduleSpecifier)?.has(typeReference.name)) continue;
+    const names = modules.get(moduleSpecifier) ?? new Set<string>();
+    names.add(typeReference.name);
+    modules.set(moduleSpecifier, names);
+  }
+
   return Array.from(modules.entries()).map(([moduleSpecifier, names]) => `import type { ${Array.from(names).join(`, `)} } from ${JSON.stringify(moduleSpecifier)};`);
 }
 
@@ -164,8 +177,9 @@ function buildCaseArguments(
   parameterOrder: string[],
   parameterTypes: Record<string, string | undefined>,
   parameterTypeReferences: Record<string, { name: string; module: string } | undefined>,
-): { declarations: string[]; args: string } {
+): { declarations: string[]; args: string; referencesByParam: Record<string, string> } {
   const declarations: string[] = [];
+  const referencesByParam: Record<string, string> = {};
 
   const args = parameterOrder.map((param, index) => {
     const value = testCase.inputs[param];
@@ -175,13 +189,63 @@ function buildCaseArguments(
       const variableName = toMockConstantName(param);
       const typeAnnotation = resolveMockTypeAnnotation(callableName, index, param, parameterTypes, parameterTypeReferences);
       declarations.push(`        const ${variableName}: ${typeAnnotation} = ${renderJsValue(value)};`);
+      referencesByParam[param] = variableName;
       return variableName;
     }
 
-    return renderJsValue(value);
+    const renderedValue = renderJsValue(value);
+    referencesByParam[param] = renderedValue;
+    return renderedValue;
   }).join(`, `);
 
-  return { declarations, args };
+  return { declarations, args, referencesByParam };
+}
+
+function resolveResultTypeAnnotation(
+  callableName: string,
+  returnType: string | undefined,
+  returnTypeReference: { name: string; module: string } | undefined,
+): string {
+  if (returnTypeReference && isTypedObjectParameter(returnType)) {
+    return returnTypeReference.name;
+  }
+
+  return `ReturnType<typeof ${callableName}>`;
+}
+
+function buildExpectedResultBlock(
+  callableName: string,
+  testCase: TestCaseSpecification[`cases`][number],
+  parameterOrder: string[],
+  returnType: string | undefined,
+  returnTypeReference: { name: string; module: string } | undefined,
+  referencesByParam: Record<string, string>,
+): { declarations: string[]; assertion: string } {
+  const expectedValue = testCase.expected.value;
+
+  if (!(expectedValue !== null && typeof expectedValue === `object`) || !isTypedObjectParameter(returnType)) {
+    return {
+      declarations: [],
+      assertion: `          expect(result).toEqual(${renderJsValue(expectedValue)});`,
+    };
+  }
+
+  const resultTypeAnnotation = resolveResultTypeAnnotation(callableName, returnType, returnTypeReference);
+  const matchingParam = testCase.expected.sourceParam && referencesByParam[testCase.expected.sourceParam]
+    ? testCase.expected.sourceParam
+    : undefined;
+
+  if (matchingParam) {
+    return {
+      declarations: [`        const RESULT: ${resultTypeAnnotation} = ${referencesByParam[matchingParam]};`],
+      assertion: `          expect(result).toBe(RESULT);`,
+    };
+  }
+
+  return {
+    declarations: [`        const RESULT: ${resultTypeAnnotation} = ${renderJsValue(expectedValue)};`],
+    assertion: `          expect(result).toEqual(RESULT);`,
+  };
 }
 
 function stableSerialize(value: unknown): string {
@@ -382,6 +446,8 @@ function buildSuite(
   parameterOrder: string[],
   parameterTypes: Record<string, string | undefined>,
   parameterTypeReferences: Record<string, { name: string; module: string } | undefined>,
+  returnType: string | undefined,
+  returnTypeReference: { name: string; module: string } | undefined,
 ): string {
   const testBlocks = (spec.cases ?? []).map((testCase) => {
     const caseArguments = buildCaseArguments(callableName, testCase, parameterOrder, parameterTypes, parameterTypeReferences);
@@ -422,13 +488,22 @@ function buildSuite(
 
     const beforeEachBlock = buildBeforeEachBlockWithCalls(testCase.mocks, testCase.callExpectations);
     const callAssertions = buildCallAssertionLines(testCase.callExpectations);
+    const expectedResult = buildExpectedResultBlock(
+      callableName,
+      testCase,
+      parameterOrder,
+      returnType,
+      returnTypeReference,
+      caseArguments.referencesByParam,
+    );
     return [
       `      describe(${JSON.stringify(`and ${stateMessage}`)}, () => {`,
       beforeEachBlock,
       ...caseArguments.declarations,
+      ...expectedResult.declarations,
       `        it(${JSON.stringify(outcomeMessage)}, () => {`,
       `          const result = ${callableName}(${args});`,
-      `          expect(result).toEqual(${renderJsValue(testCase.expected.value)});`,
+      expectedResult.assertion,
       ...callAssertions,
       `        });`,
       `      });`,
@@ -470,8 +545,10 @@ export function createVitestTests(input: TestGenerationInput): string {
     const parameterOrder = input.parameterOrderByFunction?.[callableName] ?? input.parameterOrder;
     const parameterTypes = input.parameterTypeByFunction?.[callableName] ?? {};
     const parameterTypeReferences = input.parameterTypeReferenceByFunction?.[callableName] ?? {};
+    const returnType = input.returnTypeByFunction?.[callableName];
+    const returnTypeReference = input.returnTypeReferenceByFunction?.[callableName];
 
-    return buildSuite(singleSpec, callableName, parameterOrder, parameterTypes, parameterTypeReferences);
+    return buildSuite(singleSpec, callableName, parameterOrder, parameterTypes, parameterTypeReferences, returnType, returnTypeReference);
   });
 
   return [

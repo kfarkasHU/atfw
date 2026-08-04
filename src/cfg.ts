@@ -63,6 +63,9 @@ function formatValue(value: any): string {
   if (value.type === `IRConst`) return String(value.value);
   if (value.type === `IRVar`) return value.name;
   if (value.type === `IRArray`) return `[${(value.elements ?? []).map((element: any) => formatValue(element)).join(`, `)}]`;
+  if (value.type === `IRObject`) {
+    return `{${(value.properties ?? []).map((property: any) => `${property.name}: ${formatValue(property.value)}`).join(`, `)}}`;
+  }
 
   if (value.type === `IRTemplate`) {
     return "`${title} ${name}`";
@@ -79,6 +82,9 @@ function evaluateLocalValue(value: any): unknown {
   if (!value) return null;
   if (value.type === `IRConst`) return value.value;
   if (value.type === `IRArray`) return (value.elements ?? []).map((element: any) => evaluateLocalValue(element));
+  if (value.type === `IRObject`) {
+    return Object.fromEntries((value.properties ?? []).map((property: any) => [property.name, evaluateLocalValue(property.value)]));
+  }
   return null;
 }
 
