@@ -31,6 +31,10 @@ INPUT_FILES=(
   test/imported-interface-source.ts
   test/imported-type-source.ts
   test/imported-class-source.ts
+  test/imported-interface-nested-source.ts
+  test/imported-type-nested-source.ts
+  test/imported-class-nested-source.ts
+  test/inline-nested-array-profile.ts
   test/is-array.ts
   test/is-boolean.ts
   test/is-defined.ts
@@ -63,10 +67,13 @@ INPUT_FILES=(
   test/typed-param-inline-type.ts
   test/typed-param-interface.ts
   test/typed-param-class.ts
+  test/multi-param-object-and-flag.ts
+  test/optional-object-param.ts
   test/typeguard-empty-string.ts
   test/typeguard-is-nil.ts
   test/typeof-number-check.ts
   test/typeof-string-check.ts
+  test/union-typeguard.ts
   test/undefined-equality.ts
 )
 
