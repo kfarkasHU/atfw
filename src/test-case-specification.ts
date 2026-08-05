@@ -926,7 +926,7 @@ function collectCallOccurrences(
 
     if (expr.callee?.type === `IRProperty`) {
       const targetValue = evaluateExpr(expr.callee.object, inputs, locals, mocks);
-      if (isPrimitiveLikeValue(targetValue)) {
+      if (targetValue !== null && targetValue !== undefined && isPrimitiveLikeValue(targetValue)) {
         return nested;
       }
     }
