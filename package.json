@@ -1,6 +1,6 @@
 {
   "name": "@kfarkasHU/atfw",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "bin": {
     "atfw": "dist/src/cli.js"
   },
