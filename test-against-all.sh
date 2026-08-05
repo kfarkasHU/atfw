@@ -59,6 +59,7 @@ INPUT_FILES=(
   test/is-string.ts
   test/is-true.ts
   test/is-zero.ts
+  test/literal-union-string-guard.ts
   test/logical-and-boolean.ts
   test/logical-not-flag.ts
   test/logical-or-boolean.ts

@@ -261,10 +261,14 @@ function inferTypeFromDeclaredType(type: string | undefined): InferredType {
   const unionParts = allParts.filter((part) => part !== `null` && part !== `undefined`);
 
   const parts = unionParts.length ? unionParts : [normalized];
+  const literalKinds = parts.map((part) => parsePrimitiveLiteralType(part)?.kind ?? null);
 
   if (parts.includes(`boolean`)) return `boolean`;
   if (parts.includes(`number`)) return `number`;
   if (parts.includes(`string`)) return `string`;
+  if (parts.length && literalKinds.every((kind) => kind === `boolean`)) return `boolean`;
+  if (parts.length && literalKinds.every((kind) => kind === `number`)) return `number`;
+  if (parts.length && literalKinds.every((kind) => kind === `string`)) return `string`;
 
   if (normalized.includes(`&`)) {
     return allowsNullish ? `nullable-object` : `object`;
@@ -323,6 +327,22 @@ function stripOuterParens(type: string): string {
   return current;
 }
 
+function parsePrimitiveLiteralType(part: string): { kind: InferredType; value: unknown } | null {
+  const normalized = stripOuterParens(part.trim());
+  if (!normalized) return null;
+
+  if (normalized === `true`) return { kind: `boolean`, value: true };
+  if (normalized === `false`) return { kind: `boolean`, value: false };
+  if (/^`[^`]*`$/s.test(normalized) || /^'[^']*'$/s.test(normalized) || /^"[^"]*"$/s.test(normalized)) {
+    return { kind: `string`, value: normalized.slice(1, -1) };
+  }
+  if (/^-?\d+(\.\d+)?$/.test(normalized)) {
+    return { kind: `number`, value: Number(normalized) };
+  }
+
+  return null;
+}
+
 function defaultFromDeclaredType(type: string | undefined, name: string): unknown {
   if (!type) return `${name}_value`;
 
@@ -347,10 +367,16 @@ function defaultFromDeclaredType(type: string | undefined, name: string): unknow
   const allParts = normalized.split(`|`).map((part) => stripOuterParens(part.trim())).filter(Boolean);
   const parts = allParts.filter((part) => part !== `null` && part !== `undefined`);
   const primaryType = parts[0] ?? allParts[0] ?? normalized;
+  const literalDefaults = parts
+    .map((part) => parsePrimitiveLiteralType(part))
+    .filter((value): value is { kind: InferredType; value: unknown } => value !== null);
 
   if (parts.includes(`boolean`) || primaryType === `boolean`) return false;
   if (parts.includes(`number`) || primaryType === `number`) return 1;
   if (parts.includes(`string`) || primaryType === `string`) return `${name}_value`;
+  if (literalDefaults.length === parts.length && literalDefaults.length > 0) {
+    return literalDefaults[0].value;
+  }
 
   if (primaryType.startsWith(`{`) && primaryType.endsWith(`}`)) {
     const content = primaryType.slice(1, -1).trim();
@@ -1306,7 +1332,13 @@ function satisfyExpr(
         : null;
 
     if (typeTarget && typeConst && [`string`, `number`, `boolean`].includes(typeConst)) {
+      const existingType = typeMap[typeTarget];
       markType(typeMap, typeTarget, typeConst as InferredType);
+
+      if (existingType === typeConst) {
+        return;
+      }
+
       assignVar(inputs, typeTarget, expected ? sampleNonMatchingPrimitiveValue(typeConst) : sampleValueForPrimitiveType(typeConst, typeTarget), true);
       assignDescription(stateDescriptions, typeTarget, describeConstraintValue(typeConst, expected));
       return;
@@ -1353,7 +1385,13 @@ function satisfyExpr(
         : null;
 
     if (typeTarget && typeConst && [`string`, `number`, `boolean`].includes(typeConst)) {
+      const existingType = typeMap[typeTarget];
       markType(typeMap, typeTarget, typeConst as InferredType);
+
+      if (existingType === typeConst) {
+        return;
+      }
+
       assignVar(inputs, typeTarget, expected ? sampleValueForPrimitiveType(typeConst, typeTarget) : sampleNonMatchingPrimitiveValue(typeConst), true);
       assignDescription(stateDescriptions, typeTarget, describeConstraintValue(typeConst, !expected));
       return;

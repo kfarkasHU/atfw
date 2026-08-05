@@ -310,6 +310,14 @@ function sampleValueFromType(type: any, seed: string, depth = 0): any {
     }
   }
 
+  if (type.isStringLiteral?.()) return type.getLiteralValue?.() ?? `${seed}_value`;
+  if (type.isNumberLiteral?.()) return type.getLiteralValue?.() ?? 1;
+  if (type.isBooleanLiteral?.()) return typeText === `true`;
+  if (/^`[^`]*`$/s.test(typeText) || /^'[^']*'$/s.test(typeText) || /^"[^"]*"$/s.test(typeText)) {
+    return typeText.slice(1, -1);
+  }
+  if (/^-?\d+(\.\d+)?$/.test(typeText)) return Number(typeText);
+
   if (type.isBoolean?.()) return false;
   if (type.isNumber?.()) return 1;
   if (type.isString?.()) return `${seed}_value`;
