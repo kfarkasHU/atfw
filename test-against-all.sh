@@ -87,6 +87,10 @@ INPUT_FILES=(
   test/typed-param-interface.ts
   test/typed-param-class.ts
   test/multi-param-object-and-flag.ts
+  test/nullable-property-null.ts
+  test/nullable-property-undefined.ts
+  test/optional-arg-question.ts
+  test/optional-property-question.ts
   test/optional-object-param.ts
   test/typeguard-empty-string.ts
   test/typeguard-is-nil.ts

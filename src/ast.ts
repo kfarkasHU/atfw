@@ -304,7 +304,29 @@ function sampleValueFromType(type: any, seed: string, depth = 0): any {
   if ([`string`, `String`].includes(typeText)) return `${seed}_value`;
 
   if (type.isUnion?.()) {
-    const candidate = type.getUnionTypes?.().find((item: any) => !item.isNull?.() && !item.isUndefined?.());
+    const unionTypes = type.getUnionTypes?.().filter((item: any) => !item.isNull?.() && !item.isUndefined?.()) ?? [];
+    const isPrimitiveCandidate = (item: any) => {
+      const text = item.getText?.()?.trim?.() ?? ``;
+      return [
+        `string`, `String`, `number`, `Number`, `boolean`, `Boolean`, `true`, `false`,
+      ].includes(text)
+        || item.isStringLiteral?.()
+        || item.isNumberLiteral?.()
+        || item.isBooleanLiteral?.()
+        || /^`[^`]*`$/s.test(text)
+        || /^'[^']*'$/s.test(text)
+        || /^"[^"]*"$/s.test(text)
+        || /^-?\d+(\.\d+)?$/.test(text);
+    };
+
+    const aliasOrObjectCandidate = unionTypes.find((item: any) => !isPrimitiveCandidate(item));
+    const candidate = unionTypes.find((item: any) => {
+      const text = item.getText?.()?.trim?.() ?? ``;
+      return Boolean(item.getProperties?.()?.length)
+        || item.isObject?.()
+        || text.startsWith(`{`)
+        || text.endsWith(`[]`);
+    }) ?? aliasOrObjectCandidate ?? unionTypes[0];
     if (candidate) {
       return sampleValueFromType(candidate, seed, depth + 1);
     }
@@ -399,12 +421,21 @@ function toParameterNode(parameter: any, importMap: Map<string, string>, sourceE
   const typeNode = parameter.getTypeNode();
   const typeName = typeNode?.getText() ?? parameter.getType().getText() ?? `any`;
   const optional = parameter.hasQuestionToken();
+  const parameterType = parameter.getType();
+  const unionTypes = parameterType.getUnionTypes?.().filter((item: any) => !item.isNull?.() && !item.isUndefined?.()) ?? [];
+  const defaultValueSource = unionTypes.find((item: any) => {
+    const text = item.getText?.()?.trim?.() ?? ``;
+    return Boolean(item.getProperties?.()?.length)
+      || item.isObject?.()
+      || text.startsWith(`{`)
+      || /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(text);
+  }) ?? parameterType;
 
   return {
     name: parameter.getName(),
     type: optional ? `${typeName}?` : typeName,
     optional,
-    defaultValue: sampleValueFromType(parameter.getType(), parameter.getName()),
+    defaultValue: sampleValueFromType(defaultValueSource, parameter.getName()),
     typeReference: toParameterTypeReference(parameter, importMap, sourceExportNames),
   };
 }

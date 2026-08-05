@@ -54,8 +54,8 @@ type ConstraintsOutput = {
 };
 
 type TestCaseSpecificationOptions = {
-  params?: Array<string | { name: string; type?: string; defaultValue?: unknown }>;
-  paramsByFunction?: Record<string, Array<string | { name: string; type?: string; defaultValue?: unknown }>>;
+  params?: Array<string | { name: string; type?: string; optional?: boolean; defaultValue?: unknown }>;
+  paramsByFunction?: Record<string, Array<string | { name: string; type?: string; optional?: boolean; defaultValue?: unknown }>>;
 };
 
 type InferredType = `boolean` | `number` | `string` | `object` | `nullable-object` | `unknown`;
@@ -63,6 +63,7 @@ type InferredType = `boolean` | `number` | `string` | `object` | `nullable-objec
 type ParamMeta = {
   name: string;
   type?: string;
+  optional?: boolean;
   defaultValue?: unknown;
 };
 
@@ -193,13 +194,13 @@ function fillMissingInputs(inputs: Record<string, unknown>, typeMap: Record<stri
   }
 }
 
-function normalizeParams(params: Array<string | { name: string; type?: string; defaultValue?: unknown }>): ParamMeta[] {
+function normalizeParams(params: Array<string | { name: string; type?: string; optional?: boolean; defaultValue?: unknown }>): ParamMeta[] {
   return params.map((param) => {
     if (typeof param === `string`) {
       return { name: param };
     }
 
-    return { name: param.name, type: param.type, defaultValue: param.defaultValue };
+    return { name: param.name, type: param.type, optional: param.optional, defaultValue: param.defaultValue };
   });
 }
 
@@ -233,6 +234,14 @@ function mergeMissingFields(current: unknown, defaults: unknown): unknown {
 
     for (const [key, defaultEntry] of Object.entries(defaultObject)) {
       if (!(key in currentObject)) {
+        currentObject[key] = cloneValue(defaultEntry);
+        continue;
+      }
+
+      if (
+        currentObject[key] && typeof currentObject[key] === `object` && !Array.isArray(currentObject[key])
+        && (defaultEntry === null || [`string`, `number`, `boolean`, `undefined`].includes(typeof defaultEntry))
+      ) {
         currentObject[key] = cloneValue(defaultEntry);
         continue;
       }
@@ -300,6 +309,25 @@ function mergeObjectDefaults(target: Record<string, unknown>, source: Record<str
   }
 
   return target;
+}
+
+function assignObjectProperty(
+  inputs: Record<string, unknown>,
+  objectName: string,
+  propertyName: string,
+  propertyValue: unknown,
+  removeProperty = false,
+) {
+  const current = inputs[objectName];
+  const objectValue = current && typeof current === `object` ? { ...(current as Record<string, unknown>) } : {};
+
+  if (removeProperty) {
+    objectValue[propertyName] = undefined;
+  } else {
+    objectValue[propertyName] = propertyValue;
+  }
+
+  assignVar(inputs, objectName, objectValue, true);
 }
 
 function stripOuterParens(type: string): string {
@@ -420,9 +448,25 @@ function defaultFromDeclaredType(type: string | undefined, name: string): unknow
 function fillMissingParams(inputs: Record<string, unknown>, params: ParamMeta[], typeMap: Record<string, InferredType>) {
   for (const param of params) {
     if (param.name in inputs) {
+      if (param.optional && inputs[param.name] === undefined) {
+        continue;
+      }
+
       if (param.defaultValue !== undefined) {
+        if (
+          param.defaultValue !== null && typeof param.defaultValue === `object` && !Array.isArray(param.defaultValue)
+          && (inputs[param.name] === null || typeof inputs[param.name] !== `object` || Array.isArray(inputs[param.name]))
+        ) {
+          inputs[param.name] = cloneValue(param.defaultValue);
+          continue;
+        }
+
         inputs[param.name] = mergeMissingFields(inputs[param.name], param.defaultValue);
       }
+      continue;
+    }
+
+    if (param.optional) {
       continue;
     }
 
@@ -1037,7 +1081,7 @@ function evaluateExpr(
   }
 
   if (expr.type === `IRVar`) {
-    if (expr.name === `undefined`) return `undefined`;
+    if (expr.name === `undefined`) return undefined;
     if (expr.name in locals) return locals[expr.name];
     if (expr.name in inputs) return inputs[expr.name];
     if (expr.name in mocks) return mocks[expr.name];
@@ -1183,6 +1227,9 @@ function expandExpectedOutcomes(
   }
 
   const directValue = evaluateExpr(expr, inputs, locals, seededMocks);
+  if ([`string`, `number`].includes(typeof directValue)) {
+    return [{ value: directValue, mocks: seededMocks }];
+  }
   if (directValue !== null && (typeof directValue === `object` || typeof directValue === `function`)) {
     return [{ value: directValue, mocks: seededMocks }];
   }
@@ -1324,6 +1371,40 @@ function satisfyExpr(
     const left = expr.left;
     const right = expr.right;
 
+    if (left?.type === `IRProperty` && left.object?.type === `IRVar` && (right?.type === `IRConst` || (right?.type === `IRVar` && right.name === `undefined`))) {
+      markType(typeMap, left.object.name, `object`);
+      const rightValue = right.type === `IRConst` ? right.value : undefined;
+
+      if (rightValue === undefined) {
+        if (expected) {
+          assignObjectProperty(inputs, left.object.name, left.property, undefined, true);
+        }
+        return;
+      }
+
+      if (rightValue === null) {
+        assignObjectProperty(inputs, left.object.name, left.property, expected ? {} : null);
+        return;
+      }
+    }
+
+    if ((left?.type === `IRConst` || (left?.type === `IRVar` && left.name === `undefined`)) && right?.type === `IRProperty` && right.object?.type === `IRVar`) {
+      markType(typeMap, right.object.name, `object`);
+      const leftValue = left.type === `IRConst` ? left.value : undefined;
+
+      if (leftValue === undefined) {
+        if (expected) {
+          assignObjectProperty(inputs, right.object.name, right.property, undefined, true);
+        }
+        return;
+      }
+
+      if (leftValue === null) {
+        assignObjectProperty(inputs, right.object.name, right.property, expected ? {} : null);
+        return;
+      }
+    }
+
     const typeTarget = extractTypeOfTarget(left) ?? extractTypeOfTarget(right);
     const typeConst = left?.type === `IRConst` && typeof left.value === `string`
       ? left.value
@@ -1362,6 +1443,40 @@ function satisfyExpr(
   if (expr.type === `IRBinary` && expr.op === `===`) {
     const left = expr.left;
     const right = expr.right;
+
+    if (left?.type === `IRProperty` && left.object?.type === `IRVar` && (right?.type === `IRConst` || (right?.type === `IRVar` && right.name === `undefined`))) {
+      markType(typeMap, left.object.name, `object`);
+      const rightValue = right.type === `IRConst` ? right.value : undefined;
+
+      if (rightValue === undefined) {
+        if (expected) {
+          assignObjectProperty(inputs, left.object.name, left.property, undefined, true);
+        }
+        return;
+      }
+
+      if (rightValue === null) {
+        assignObjectProperty(inputs, left.object.name, left.property, expected ? null : {});
+        return;
+      }
+    }
+
+    if ((left?.type === `IRConst` || (left?.type === `IRVar` && left.name === `undefined`)) && right?.type === `IRProperty` && right.object?.type === `IRVar`) {
+      markType(typeMap, right.object.name, `object`);
+      const leftValue = left.type === `IRConst` ? left.value : undefined;
+
+      if (leftValue === undefined) {
+        if (expected) {
+          assignObjectProperty(inputs, right.object.name, right.property, undefined, true);
+        }
+        return;
+      }
+
+      if (leftValue === null) {
+        assignObjectProperty(inputs, right.object.name, right.property, expected ? null : {});
+        return;
+      }
+    }
 
     if (left?.type === `IRProperty` && left.property === `length` && left.object?.type === `IRVar` && right?.type === `IRConst` && typeof right.value === `number`) {
       markType(typeMap, left.object.name, `object`);
@@ -1517,7 +1632,7 @@ function buildCase(
   for (const param of params) {
     markType(typeMap, param.name, inferTypeFromDeclaredType(param.type));
 
-    if (param.defaultValue !== null && typeof param.defaultValue === `object` && !Array.isArray(param.defaultValue)) {
+    if (!param.optional && param.defaultValue !== null && typeof param.defaultValue === `object` && !Array.isArray(param.defaultValue)) {
       markType(typeMap, param.name, `object`);
     }
   }
