@@ -20,6 +20,28 @@ function createSampleCallable(returnValue: unknown): SampleCallable {
   return callable;
 }
 
+function mergeSampleObjects(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+  for (const [key, value] of Object.entries(source)) {
+    if (!(key in target)) {
+      target[key] = value;
+      continue;
+    }
+
+    if (
+      target[key] && value
+      && typeof target[key] === `object` && !Array.isArray(target[key])
+      && typeof value === `object` && !Array.isArray(value)
+    ) {
+      target[key] = mergeSampleObjects(
+        { ...(target[key] as Record<string, unknown>) },
+        value as Record<string, unknown>,
+      );
+    }
+  }
+
+  return target;
+}
+
 function stringValue(node: any): string {
   return node?.getText?.() ?? ``;
 }
@@ -128,6 +150,10 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
       };
     }
     case SyntaxKind.ParenthesizedExpression: {
+      return toExpressionNode(expression.getExpression(), optionalParams);
+    }
+    case SyntaxKind.AsExpression:
+    case SyntaxKind.TypeAssertionExpression: {
       return toExpressionNode(expression.getExpression(), optionalParams);
     }
     case SyntaxKind.NullKeyword: {
@@ -319,6 +345,29 @@ function sampleValueFromType(type: any, seed: string, depth = 0): any {
         || /^-?\d+(\.\d+)?$/.test(text);
     };
 
+    const objectLikeMembers = unionTypes.filter((item: any) => !isPrimitiveCandidate(item) && (
+      Boolean(item.getProperties?.()?.length)
+      || item.isObject?.()
+      || item.isIntersection?.()
+      || (item.getText?.()?.trim?.() ?? ``).startsWith(`{`)
+      || (item.getText?.()?.trim?.() ?? ``).endsWith(`[]`)
+    ));
+
+    if (objectLikeMembers.length) {
+      const mergedObject: Record<string, unknown> = objectLikeMembers.reduce((accumulator: Record<string, unknown>, member: any) => {
+        const sampled = sampleValueFromType(member, seed, depth + 1);
+        if (sampled && typeof sampled === `object` && !Array.isArray(sampled)) {
+          return mergeSampleObjects(accumulator, sampled as Record<string, unknown>);
+        }
+
+        return accumulator;
+      }, {} as Record<string, unknown>);
+
+      if (Object.keys(mergedObject).length) {
+        return mergedObject;
+      }
+    }
+
     const aliasOrObjectCandidate = unionTypes.find((item: any) => !isPrimitiveCandidate(item));
     const candidate = unionTypes.find((item: any) => {
       const text = item.getText?.()?.trim?.() ?? ``;
@@ -422,20 +471,12 @@ function toParameterNode(parameter: any, importMap: Map<string, string>, sourceE
   const typeName = typeNode?.getText() ?? parameter.getType().getText() ?? `any`;
   const optional = parameter.hasQuestionToken();
   const parameterType = parameter.getType();
-  const unionTypes = parameterType.getUnionTypes?.().filter((item: any) => !item.isNull?.() && !item.isUndefined?.()) ?? [];
-  const defaultValueSource = unionTypes.find((item: any) => {
-    const text = item.getText?.()?.trim?.() ?? ``;
-    return Boolean(item.getProperties?.()?.length)
-      || item.isObject?.()
-      || text.startsWith(`{`)
-      || /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(text);
-  }) ?? parameterType;
 
   return {
     name: parameter.getName(),
     type: optional ? `${typeName}?` : typeName,
     optional,
-    defaultValue: sampleValueFromType(defaultValueSource, parameter.getName()),
+    defaultValue: sampleValueFromType(parameterType, parameter.getName()),
     typeReference: toParameterTypeReference(parameter, importMap, sourceExportNames),
   };
 }

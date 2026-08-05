@@ -90,6 +90,7 @@ INPUT_FILES=(
   test/typed-param-interface.ts
   test/typed-param-class.ts
   test/multi-param-object-and-flag.ts
+  test/union-of-intersections.ts
   test/nullable-property-null.ts
   test/nullable-property-undefined.ts
   test/optional-arg-question.ts

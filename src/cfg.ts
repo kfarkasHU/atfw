@@ -81,6 +81,7 @@ function formatValue(value: any): string {
 function evaluateLocalValue(value: any): unknown {
   if (!value) return null;
   if (value.type === `IRConst`) return value.value;
+  if (value.type === `IRVar`) return { __ref: value.name };
   if (value.type === `IRArray`) return (value.elements ?? []).map((element: any) => evaluateLocalValue(element));
   if (value.type === `IRObject`) {
     return Object.fromEntries((value.properties ?? []).map((property: any) => [property.name, evaluateLocalValue(property.value)]));

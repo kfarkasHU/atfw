@@ -1096,7 +1096,14 @@ function evaluateExpr(
 
   if (expr.type === `IRVar`) {
     if (expr.name === `undefined`) return undefined;
-    if (expr.name in locals) return locals[expr.name];
+    if (expr.name in locals) {
+      const localValue = locals[expr.name] as { __ref?: string } | unknown;
+      if (localValue && typeof localValue === `object` && `__ref` in localValue && typeof localValue.__ref === `string`) {
+        return evaluateExpr({ type: `IRVar`, name: localValue.__ref }, inputs, locals, mocks);
+      }
+
+      return localValue;
+    }
     if (expr.name in inputs) return inputs[expr.name];
     if (expr.name in mocks) return mocks[expr.name];
     return expr.name;
