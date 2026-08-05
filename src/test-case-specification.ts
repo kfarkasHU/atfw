@@ -266,6 +266,10 @@ function inferTypeFromDeclaredType(type: string | undefined): InferredType {
   if (parts.includes(`number`)) return `number`;
   if (parts.includes(`string`)) return `string`;
 
+  if (normalized.includes(`&`)) {
+    return allowsNullish ? `nullable-object` : `object`;
+  }
+
   if (parts.some((part) => part === `object` || part.startsWith(`{`) || part.endsWith(`[]`))) {
     return allowsNullish ? `nullable-object` : `object`;
   }
@@ -273,10 +277,48 @@ function inferTypeFromDeclaredType(type: string | undefined): InferredType {
   return `unknown`;
 }
 
+function mergeObjectDefaults(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+  for (const [key, value] of Object.entries(source)) {
+    if (!(key in target)) {
+      target[key] = cloneValue(value);
+      continue;
+    }
+
+    if (
+      target[key] && typeof target[key] === `object` && !Array.isArray(target[key])
+      && value && typeof value === `object` && !Array.isArray(value)
+    ) {
+      target[key] = mergeObjectDefaults(
+        { ...(target[key] as Record<string, unknown>) },
+        value as Record<string, unknown>,
+      );
+    }
+  }
+
+  return target;
+}
+
 function defaultFromDeclaredType(type: string | undefined, name: string): unknown {
   if (!type) return `${name}_value`;
 
   const normalized = type.replace(/\?$/, ``).trim();
+
+  if (normalized.includes(`&`)) {
+    const parts = normalized.split(`&`).map((part) => part.trim()).filter(Boolean);
+    const mergedObject = parts.reduce<Record<string, unknown>>((accumulator, part) => {
+      const defaultValue = defaultFromDeclaredType(part, name);
+      if (defaultValue && typeof defaultValue === `object` && !Array.isArray(defaultValue)) {
+        return mergeObjectDefaults(accumulator, defaultValue as Record<string, unknown>);
+      }
+
+      return accumulator;
+    }, {});
+
+    if (Object.keys(mergedObject).length) {
+      return mergedObject;
+    }
+  }
+
   const allParts = normalized.split(`|`).map((part) => part.trim()).filter(Boolean);
   const parts = allParts.filter((part) => part !== `null` && part !== `undefined`);
   const primaryType = parts[0] ?? allParts[0] ?? normalized;

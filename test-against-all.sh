@@ -42,6 +42,8 @@ INPUT_FILES=(
   test/imported-type-nested-source.ts
   test/imported-class-nested-source.ts
   test/inline-nested-array-profile.ts
+  test/intersection-identity-local.ts
+  test/intersection-return-local.ts
   test/is-array.ts
   test/is-boolean.ts
   test/is-defined.ts
@@ -84,6 +86,7 @@ INPUT_FILES=(
   test/typeguard-is-nil.ts
   test/typeof-number-check.ts
   test/typeof-string-check.ts
+  test/union-return-local.ts
   test/union-typeguard.ts
   test/undefined-equality.ts
 )
