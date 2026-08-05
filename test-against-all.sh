@@ -60,6 +60,9 @@ INPUT_FILES=(
   test/is-true.ts
   test/is-zero.ts
   test/literal-union-string-guard.ts
+  test/literal-property-union-null.ts
+  test/literal-arg-union.ts
+  test/literal-property-union.ts
   test/logical-and-boolean.ts
   test/logical-not-flag.ts
   test/logical-or-boolean.ts

@@ -371,6 +371,29 @@ function parsePrimitiveLiteralType(part: string): { kind: InferredType; value: u
   return null;
 }
 
+function sampleInlinePropertyDefault(typeText: string, propertyName: string): unknown {
+  const normalized = stripOuterParens(typeText.replace(/\?$/, ``).trim());
+  const parts = normalized.split(`|`).map((part) => stripOuterParens(part.trim())).filter((part) => part && part !== `null` && part !== `undefined`);
+
+  if (!parts.length) return null;
+
+  const literalDefaults = parts
+    .map((part) => parsePrimitiveLiteralType(part))
+    .filter((value): value is { kind: InferredType; value: unknown } => value !== null);
+
+  if (literalDefaults.length) {
+    return literalDefaults[0].value;
+  }
+
+  const primaryType = parts[0] ?? normalized;
+  if (primaryType === `boolean` || primaryType === `true` || primaryType === `false`) return false;
+  if (primaryType === `number`) return 1;
+  if (primaryType === `string`) return `${propertyName}_value`;
+  if (primaryType.startsWith(`{`) && primaryType.endsWith(`}`)) return {};
+
+  return null;
+}
+
 function defaultFromDeclaredType(type: string | undefined, name: string): unknown {
   if (!type) return `${name}_value`;
 
@@ -419,16 +442,7 @@ function defaultFromDeclaredType(type: string | undefined, name: string): unknow
 
       const [, property, propertyTypeRaw] = match;
       const propertyType = propertyTypeRaw.trim();
-
-      if (propertyType === `boolean`) {
-        objectValue[property] = false;
-      } else if (propertyType === `number`) {
-        objectValue[property] = 1;
-      } else if (propertyType === `string`) {
-        objectValue[property] = `${property}_value`;
-      } else {
-        objectValue[property] = null;
-      }
+      objectValue[property] = sampleInlinePropertyDefault(propertyType, property);
     }
 
     return objectValue;
@@ -1155,6 +1169,7 @@ function evaluateExpr(
 
     if (expr.op === `===`) return leftValue === rightValue;
     if (expr.op === `!==`) return leftValue !== rightValue;
+    if (expr.op === `??`) return leftValue ?? rightValue;
     if (expr.op === `&&`) return Boolean(leftValue) && Boolean(rightValue);
     if (expr.op === `||`) return Boolean(leftValue) || Boolean(rightValue);
     if (expr.op === `>`) return Number(leftValue) > Number(rightValue);
