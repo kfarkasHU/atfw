@@ -75,6 +75,13 @@ function toIrExpression(node: any): any {
 function toIrStatement(node: any): any {
   if (!node) return null;
 
+  if (node.type === `Block`) {
+    return (node.body ?? []).flatMap((statement: any) => {
+      const irStatement = toIrStatement(statement);
+      return Array.isArray(irStatement) ? irStatement : [irStatement];
+    });
+  }
+
   if (node.type === `IfStatement`) {
     return {
       type: `IRIf`,

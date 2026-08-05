@@ -70,6 +70,9 @@ INPUT_FILES=(
   test/primitive-import-string-method.ts
   test/pure-truthy-object.ts
   test/pure-truthy-string.ts
+  test/switch-enum.ts
+  test/switch-number.ts
+  test/switch-string.ts
   test/ternary-by-flag.ts
   test/ternary-by-number.ts
   test/throws-on-zero.ts

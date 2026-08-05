@@ -24,6 +24,18 @@ function stringValue(node: any): string {
   return node?.getText?.() ?? ``;
 }
 
+function toEnumMemberConst(expression: any): any {
+  const symbol = expression?.getSymbol?.();
+  const declaration = symbol?.getValueDeclaration?.();
+  if (!declaration || declaration.getKind?.() !== SyntaxKind.EnumMember) {
+    return null;
+  }
+
+  const initializer = declaration.getInitializer?.();
+  if (!initializer) return null;
+  return toExpressionNode(initializer);
+}
+
 function toExpressionNode(expression: any, optionalParams = new Set<string>()): any {
   if (!expression) return null;
 
@@ -125,6 +137,11 @@ function toExpressionNode(expression: any, optionalParams = new Set<string>()): 
       return { type: `Const`, value: `undefined` };
     }
     case SyntaxKind.PropertyAccessExpression: {
+      const enumConst = toEnumMemberConst(expression);
+      if (enumConst) {
+        return enumConst;
+      }
+
       return {
         type: `PropertyAccessExpression`,
         expression: toExpressionNode(expression.getExpression(), optionalParams),
@@ -210,6 +227,39 @@ function toStatementNode(statement: any, optionalParams = new Set<string>(), fun
       expression: toExpressionNode(statement.getExpression(), optionalParams),
       thenStatement: thenStatements,
       elseStatement: elseStatements,
+    };
+  }
+
+  if (statement.getKind() === SyntaxKind.SwitchStatement) {
+    const switchExpression = statement.getExpression();
+    const clauses = statement.getClauses?.() ?? [];
+    const body: any[] = [];
+
+    for (const clause of clauses) {
+      const clauseStatements = (clause.getStatements?.() ?? []).map((child: any) => toStatementNode(child, optionalParams, functionDeclaration));
+
+      if (clause.getKind() === SyntaxKind.DefaultClause) {
+        body.push(...clauseStatements);
+        continue;
+      }
+
+      const caseExpression = clause.getExpression?.();
+      body.push({
+        type: `IfStatement`,
+        expression: {
+          type: `BinaryExpression`,
+          operator: `===`,
+          left: toExpressionNode(switchExpression, optionalParams),
+          right: toExpressionNode(caseExpression, optionalParams),
+        },
+        thenStatement: clauseStatements,
+        elseStatement: [],
+      });
+    }
+
+    return {
+      type: `Block`,
+      body,
     };
   }
 
