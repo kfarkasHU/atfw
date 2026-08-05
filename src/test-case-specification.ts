@@ -298,13 +298,38 @@ function mergeObjectDefaults(target: Record<string, unknown>, source: Record<str
   return target;
 }
 
+function stripOuterParens(type: string): string {
+  let current = type.trim();
+
+  while (current.startsWith(`(`) && current.endsWith(`)`)) {
+    let depth = 0;
+    let wrapsWholeType = true;
+
+    for (let index = 0; index < current.length; index += 1) {
+      const char = current[index];
+      if (char === `(`) depth += 1;
+      if (char === `)`) depth -= 1;
+
+      if (depth === 0 && index < current.length - 1) {
+        wrapsWholeType = false;
+        break;
+      }
+    }
+
+    if (!wrapsWholeType) break;
+    current = current.slice(1, -1).trim();
+  }
+
+  return current;
+}
+
 function defaultFromDeclaredType(type: string | undefined, name: string): unknown {
   if (!type) return `${name}_value`;
 
-  const normalized = type.replace(/\?$/, ``).trim();
+  const normalized = stripOuterParens(type.replace(/\?$/, ``).trim());
 
   if (normalized.includes(`&`)) {
-    const parts = normalized.split(`&`).map((part) => part.trim()).filter(Boolean);
+    const parts = normalized.split(`&`).map((part) => stripOuterParens(part.trim())).filter(Boolean);
     const mergedObject = parts.reduce<Record<string, unknown>>((accumulator, part) => {
       const defaultValue = defaultFromDeclaredType(part, name);
       if (defaultValue && typeof defaultValue === `object` && !Array.isArray(defaultValue)) {
@@ -319,7 +344,7 @@ function defaultFromDeclaredType(type: string | undefined, name: string): unknow
     }
   }
 
-  const allParts = normalized.split(`|`).map((part) => part.trim()).filter(Boolean);
+  const allParts = normalized.split(`|`).map((part) => stripOuterParens(part.trim())).filter(Boolean);
   const parts = allParts.filter((part) => part !== `null` && part !== `undefined`);
   const primaryType = parts[0] ?? allParts[0] ?? normalized;
 

@@ -43,6 +43,7 @@ INPUT_FILES=(
   test/imported-class-nested-source.ts
   test/inline-nested-array-profile.ts
   test/intersection-identity-local.ts
+  test/intersection-parenthesized-local.ts
   test/intersection-return-local.ts
   test/is-array.ts
   test/is-boolean.ts
