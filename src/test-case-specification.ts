@@ -491,6 +491,107 @@ function defaultIncludesSearchValue(): unknown {
   return 1;
 }
 
+function isPrimitiveLikeValue(value: unknown): boolean {
+  return value === null || [`string`, `number`, `boolean`].includes(typeof value);
+}
+
+function isStringUtilityMethod(name: string): boolean {
+  const candidate = (`` as unknown as Record<string, unknown>)[name];
+  return typeof candidate === `function`;
+}
+
+function applyImportedPrimitiveMethodMocks(
+  expr: IrExpr | null | undefined,
+  importedNames: Set<string>,
+  mocks: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!expr) return mocks;
+
+  if (
+    expr.type === `IRCall`
+    && expr.callee?.type === `IRProperty`
+    && expr.callee.object?.type === `IRCall`
+  ) {
+    const calleeName = getCalleeName(expr.callee.object);
+    if (calleeName && importedNames.has(calleeName) && isStringUtilityMethod(expr.callee.property) && !(calleeName in mocks)) {
+      return {
+        ...mocks,
+        [calleeName]: `text_value`,
+      };
+    }
+  }
+
+  if (expr.type === `IRCall`) {
+    let nextMocks = applyImportedPrimitiveMethodMocks(expr.callee, importedNames, mocks);
+    for (const arg of expr.args ?? []) {
+      nextMocks = applyImportedPrimitiveMethodMocks(arg, importedNames, nextMocks);
+    }
+    return nextMocks;
+  }
+
+  if (expr.type === `IRBinary`) {
+    return applyImportedPrimitiveMethodMocks(
+      expr.right,
+      importedNames,
+      applyImportedPrimitiveMethodMocks(expr.left, importedNames, mocks),
+    );
+  }
+
+  if (expr.type === `IRUnary`) {
+    return applyImportedPrimitiveMethodMocks(expr.expr, importedNames, mocks);
+  }
+
+  if (expr.type === `IRConditional`) {
+    return applyImportedPrimitiveMethodMocks(
+      expr.whenFalse,
+      importedNames,
+      applyImportedPrimitiveMethodMocks(
+        expr.whenTrue,
+        importedNames,
+        applyImportedPrimitiveMethodMocks(expr.condition, importedNames, mocks),
+      ),
+    );
+  }
+
+  if (expr.type === `IRProperty`) {
+    return applyImportedPrimitiveMethodMocks(expr.object, importedNames, mocks);
+  }
+
+  if (expr.type === `IRArray`) {
+    return (expr.elements ?? []).reduce(
+      (nextMocks: Record<string, unknown>, element: IrExpr) => applyImportedPrimitiveMethodMocks(element, importedNames, nextMocks),
+      mocks,
+    );
+  }
+
+  if (expr.type === `IRObject`) {
+    return (expr.properties ?? []).reduce(
+      (nextMocks: Record<string, unknown>, property: { value: IrExpr }) => applyImportedPrimitiveMethodMocks(property.value, importedNames, nextMocks),
+      mocks,
+    );
+  }
+
+  if (expr.type === `IRTemplate`) {
+    return (expr.parts ?? []).reduce(
+      (nextMocks: Record<string, unknown>, part: IrExpr) => applyImportedPrimitiveMethodMocks(part, importedNames, nextMocks),
+      mocks,
+    );
+  }
+
+  if (expr.type === `IRTypeOf`) {
+    return applyImportedPrimitiveMethodMocks(expr.expr, importedNames, mocks);
+  }
+
+  if (expr.type === `IRNew`) {
+    return (expr.args ?? []).reduce(
+      (nextMocks: Record<string, unknown>, arg: IrExpr) => applyImportedPrimitiveMethodMocks(arg, importedNames, nextMocks),
+      mocks,
+    );
+  }
+
+  return mocks;
+}
+
 function isBooleanLikeExpr(expr: IrExpr | null | undefined): boolean {
   if (!expr) return false;
 
@@ -772,6 +873,13 @@ function collectCallOccurrences(
     const callPath = resolveTrackedCallPath(expr, importedNames);
     if (!callPath) return nested;
 
+    if (expr.callee?.type === `IRProperty`) {
+      const targetValue = evaluateExpr(expr.callee.object, inputs, locals, mocks);
+      if (isPrimitiveLikeValue(targetValue)) {
+        return nested;
+      }
+    }
+
     return [
       ...nested,
       {
@@ -903,6 +1011,17 @@ function evaluateExpr(
       }
     }
 
+    if (expr.callee?.type === `IRProperty`) {
+      const objectValue = evaluateExpr(expr.callee.object, inputs, locals, mocks);
+      if (isPrimitiveLikeValue(objectValue) && objectValue !== null && objectValue !== undefined) {
+        const propertyValue = (objectValue as Record<string, unknown>)[expr.callee.property];
+        if (typeof propertyValue === `function`) {
+          const evaluatedArgs = (expr.args ?? []).map((arg: IrExpr) => evaluateExpr(arg, inputs, locals, mocks));
+          return propertyValue.apply(objectValue, evaluatedArgs);
+        }
+      }
+    }
+
     const calleeValue = evaluateExpr(expr.callee, inputs, locals, mocks);
     if (typeof calleeValue === `function`) {
       const evaluatedArgs = (expr.args ?? []).map((arg: IrExpr) => evaluateExpr(arg, inputs, locals, mocks));
@@ -914,7 +1033,7 @@ function evaluateExpr(
 
   if (expr.type === `IRProperty`) {
     const objectValue = evaluateExpr(expr.object, inputs, locals, mocks);
-    if (objectValue && typeof objectValue === `object`) {
+    if (objectValue !== null && objectValue !== undefined && (typeof objectValue === `object` || isPrimitiveLikeValue(objectValue))) {
       return (objectValue as Record<string, unknown>)[expr.property];
     }
     return null;
@@ -975,16 +1094,18 @@ function expandExpectedOutcomes(
   importedNames: Set<string>,
   mocks: Record<string, unknown> = {},
 ): Array<{ value: unknown; mocks: Record<string, unknown>; inputs?: Record<string, unknown> }> {
+  const seededMocks = applyImportedPrimitiveMethodMocks(expr, importedNames, mocks);
+
   if (!expr) {
-    return [{ value: null, mocks }];
+    return [{ value: null, mocks: seededMocks }];
   }
 
   if (expr.type === `IRCall`) {
     const calleeName = getCalleeName(expr.callee);
     if (calleeName && importedNames.has(calleeName)) {
       return [
-        { value: true, mocks: { ...mocks, [calleeName]: true } },
-        { value: false, mocks: { ...mocks, [calleeName]: false } },
+        { value: true, mocks: { ...seededMocks, [calleeName]: true } },
+        { value: false, mocks: { ...seededMocks, [calleeName]: false } },
       ];
     }
   }
@@ -993,26 +1114,26 @@ function expandExpectedOutcomes(
     const calleeName = getCalleeName(expr.condition);
     if (calleeName && importedNames.has(calleeName)) {
       return [
-        ...expandExpectedOutcomes(expr.whenTrue, inputs, locals, importedNames, { ...mocks, [calleeName]: true }),
-        ...expandExpectedOutcomes(expr.whenFalse, inputs, locals, importedNames, { ...mocks, [calleeName]: false }),
+        ...expandExpectedOutcomes(expr.whenTrue, inputs, locals, importedNames, { ...seededMocks, [calleeName]: true }),
+        ...expandExpectedOutcomes(expr.whenFalse, inputs, locals, importedNames, { ...seededMocks, [calleeName]: false }),
       ];
     }
 
-    const conditionValue = evaluateExpr(expr.condition, inputs, locals, mocks);
+    const conditionValue = evaluateExpr(expr.condition, inputs, locals, seededMocks);
     if (conditionValue === true) {
-      return expandExpectedOutcomes(expr.whenTrue, inputs, locals, importedNames, mocks);
+      return expandExpectedOutcomes(expr.whenTrue, inputs, locals, importedNames, seededMocks);
     }
 
     if (conditionValue === false) {
-      return expandExpectedOutcomes(expr.whenFalse, inputs, locals, importedNames, mocks);
+      return expandExpectedOutcomes(expr.whenFalse, inputs, locals, importedNames, seededMocks);
     }
 
-    return [{ value: evaluateExpr(expr, inputs, locals, mocks), mocks }];
+    return [{ value: evaluateExpr(expr, inputs, locals, seededMocks), mocks: seededMocks }];
   }
 
-  const directValue = evaluateExpr(expr, inputs, locals, mocks);
+  const directValue = evaluateExpr(expr, inputs, locals, seededMocks);
   if (directValue !== null && (typeof directValue === `object` || typeof directValue === `function`)) {
-    return [{ value: directValue, mocks }];
+    return [{ value: directValue, mocks: seededMocks }];
   }
 
   if (isBooleanLikeExpr(expr)) {
@@ -1022,7 +1143,7 @@ function expandExpectedOutcomes(
     const outcomes = [true, false].flatMap((expected) =>
       expandConstraintVariants(expr, expected, { inputs: { ...inputs }, stateDescriptions: {} }, typeMap).map((state) => ({
         value: expected,
-        mocks,
+        mocks: seededMocks,
         inputs: state.inputs,
         stateDescriptions: state.stateDescriptions,
       })),
@@ -1036,7 +1157,7 @@ function expandExpectedOutcomes(
     }
   }
 
-  return [{ value: evaluateExpr(expr, inputs, locals, mocks), mocks }];
+  return [{ value: evaluateExpr(expr, inputs, locals, seededMocks), mocks: seededMocks }];
 }
 
 function satisfyExpr(

@@ -66,6 +66,7 @@ INPUT_FILES=(
   test/noop.ts
   test/pure-falsy-number.ts
   test/pure-falsy-string.ts
+  test/primitive-import-string-method.ts
   test/pure-truthy-object.ts
   test/pure-truthy-string.ts
   test/ternary-by-flag.ts
