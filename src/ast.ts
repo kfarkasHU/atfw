@@ -325,6 +325,37 @@ function sampleValueFromType(type: any, seed: string, depth = 0): any {
   if (depth > 4) return {};
 
   const typeText = type.getText?.()?.trim?.() ?? ``;
+
+  // Keep unknown/any stable to avoid widening to object-like defaults.
+  if ([`unknown`, `any`].includes(typeText)) return `${seed}_value`;
+
+  // Resolve wrappers like indexed-access/alias/infer results to a concrete backing type.
+  const nonNullableType = type.getNonNullableType?.();
+  if (
+    nonNullableType
+    && nonNullableType !== type
+    && nonNullableType.getText?.()?.trim?.() !== typeText
+  ) {
+    return sampleValueFromType(nonNullableType, seed, depth + 1);
+  }
+
+  const isOpaqueWrapper = !type.isUnion?.()
+    && !type.isIntersection?.()
+    && !type.isStringLiteral?.()
+    && !type.isNumberLiteral?.()
+    && !type.isBooleanLiteral?.()
+    && !(type.getProperties?.()?.length);
+
+  const apparentType = type.getApparentType?.();
+  if (
+    isOpaqueWrapper
+    && apparentType
+    && apparentType !== type
+    && apparentType.getText?.()?.trim?.() !== typeText
+  ) {
+    return sampleValueFromType(apparentType, seed, depth + 1);
+  }
+
   if ([`boolean`, `true`, `false`, `Boolean`].includes(typeText)) return false;
   if ([`number`, `Number`].includes(typeText)) return 1;
   if ([`string`, `String`].includes(typeText)) return `${seed}_value`;
