@@ -371,6 +371,48 @@ function parsePrimitiveLiteralType(part: string): { kind: InferredType; value: u
   return null;
 }
 
+function parseDeclaredLiteralUnion(type: string | undefined): { literals: unknown[]; allowsUndefined: boolean; allowsNull: boolean } {
+  if (!type) {
+    return { literals: [], allowsUndefined: false, allowsNull: false };
+  }
+
+  const trimmed = type.trim();
+  const optionalMarker = trimmed.endsWith(`?`);
+  const normalized = stripOuterParens(trimmed.replace(/\?$/, ``).trim());
+  const parts = normalized.split(`|`).map((part) => stripOuterParens(part.trim())).filter(Boolean);
+  const allowsUndefined = optionalMarker || parts.includes(`undefined`);
+  const allowsNull = parts.includes(`null`);
+  const literals = parts
+    .filter((part) => part !== `undefined` && part !== `null`)
+    .map((part) => parsePrimitiveLiteralType(part))
+    .filter((value): value is { kind: InferredType; value: unknown } => value !== null)
+    .map((value) => value.value);
+
+  return { literals, allowsUndefined, allowsNull };
+}
+
+function selectAlternativeFromDeclaredType(
+  declaredType: string | undefined,
+  disallowedValue: unknown,
+): unknown | undefined {
+  const union = parseDeclaredLiteralUnion(declaredType);
+
+  if (union.allowsUndefined && disallowedValue !== undefined) {
+    return undefined;
+  }
+
+  if (union.allowsNull && disallowedValue !== null) {
+    return null;
+  }
+
+  const literalAlternatives = union.literals.filter((value) => value !== disallowedValue);
+  if (literalAlternatives.length) {
+    return literalAlternatives[literalAlternatives.length - 1];
+  }
+
+  return undefined;
+}
+
 function sampleInlinePropertyDefault(typeText: string, propertyName: string): unknown {
   const normalized = stripOuterParens(typeText.replace(/\?$/, ``).trim());
   const parts = normalized.split(`|`).map((part) => stripOuterParens(part.trim())).filter((part) => part && part !== `null` && part !== `undefined`);
@@ -514,6 +556,25 @@ function alternativeValue(current: unknown): unknown {
   if (typeof current === `number`) return current + 1;
   if (typeof current === `boolean`) return !current;
   return `x`;
+}
+
+function alternativeValueForVariable(
+  variableName: string,
+  current: unknown,
+  declaredTypes: Record<string, string | undefined>,
+): unknown {
+  const declaredType = declaredTypes[variableName];
+  const typedAlternative = selectAlternativeFromDeclaredType(declaredType, current);
+
+  if (typedAlternative !== undefined) {
+    return typedAlternative;
+  }
+
+  if (declaredType && parseDeclaredLiteralUnion(declaredType).allowsUndefined) {
+    return undefined;
+  }
+
+  return alternativeValue(current);
 }
 
 function sampleValueForPrimitiveType(typeName: string, variableName: string): unknown {
@@ -720,37 +781,38 @@ function expandConstraintVariants(
   expected: boolean,
   state: ConstraintState,
   typeMap: Record<string, InferredType>,
+  declaredTypes: Record<string, string | undefined> = {},
 ): ConstraintState[] {
   if (!expr) return [{ inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }];
 
   if (expr.type === `IRUnary` && expr.op === `!`) {
-    return expandConstraintVariants(expr.expr, !expected, state, typeMap);
+    return expandConstraintVariants(expr.expr, !expected, state, typeMap, declaredTypes);
   }
 
   if (expr.type === `IRBinary` && expr.op === `&&`) {
     if (expected) {
-      return expandConstraintVariants(expr.left, true, state, typeMap)
-        .flatMap((nextState) => expandConstraintVariants(expr.right, true, nextState, typeMap));
+      return expandConstraintVariants(expr.left, true, state, typeMap, declaredTypes)
+        .flatMap((nextState) => expandConstraintVariants(expr.right, true, nextState, typeMap, declaredTypes));
     }
 
     return [
-      ...expandConstraintVariants(expr.left, false, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap),
-      ...expandConstraintVariants(expr.left, true, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap)
-        .flatMap((nextState) => expandConstraintVariants(expr.right, false, nextState, typeMap)),
+      ...expandConstraintVariants(expr.left, false, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap, declaredTypes),
+      ...expandConstraintVariants(expr.left, true, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap, declaredTypes)
+        .flatMap((nextState) => expandConstraintVariants(expr.right, false, nextState, typeMap, declaredTypes)),
     ];
   }
 
   if (expr.type === `IRBinary` && expr.op === `||`) {
     if (expected) {
       return [
-        ...expandConstraintVariants(expr.left, true, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap),
-        ...expandConstraintVariants(expr.left, false, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap)
-          .flatMap((nextState) => expandConstraintVariants(expr.right, true, nextState, typeMap)),
+        ...expandConstraintVariants(expr.left, true, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap, declaredTypes),
+        ...expandConstraintVariants(expr.left, false, { inputs: { ...state.inputs }, stateDescriptions: { ...state.stateDescriptions } }, typeMap, declaredTypes)
+          .flatMap((nextState) => expandConstraintVariants(expr.right, true, nextState, typeMap, declaredTypes)),
       ];
     }
 
-    return expandConstraintVariants(expr.left, false, state, typeMap)
-      .flatMap((nextState) => expandConstraintVariants(expr.right, false, nextState, typeMap));
+    return expandConstraintVariants(expr.left, false, state, typeMap, declaredTypes)
+      .flatMap((nextState) => expandConstraintVariants(expr.right, false, nextState, typeMap, declaredTypes));
   }
 
   if (expr.type === `IRBinary` && [`>`, `>=`, `<`, `<=`].includes(expr.op)) {
@@ -934,7 +996,7 @@ function expandConstraintVariants(
     inputs: { ...state.inputs },
     stateDescriptions: { ...state.stateDescriptions },
   };
-  satisfyExpr(expr, expected, nextState.inputs, typeMap, nextState.stateDescriptions);
+  satisfyExpr(expr, expected, nextState.inputs, typeMap, nextState.stateDescriptions, declaredTypes);
   return [nextState];
 }
 
@@ -1286,6 +1348,7 @@ function satisfyExpr(
   inputs: Record<string, unknown>,
   typeMap: Record<string, InferredType>,
   stateDescriptions: Record<string, string> = {},
+  declaredTypes: Record<string, string | undefined> = {},
 ) {
   if (!expr) return;
 
@@ -1370,8 +1433,8 @@ function satisfyExpr(
 
   if (expr.type === `IRBinary` && expr.op === `&&`) {
     if (expected) {
-      satisfyExpr(expr.left, true, inputs, typeMap);
-      satisfyExpr(expr.right, true, inputs, typeMap);
+      satisfyExpr(expr.left, true, inputs, typeMap, stateDescriptions, declaredTypes);
+      satisfyExpr(expr.right, true, inputs, typeMap, stateDescriptions, declaredTypes);
       return;
     }
 
@@ -1380,12 +1443,12 @@ function satisfyExpr(
     const rightLooksRicher = expr.right?.type === `IRBinary` || expr.right?.type === `IRUnary`;
 
     if (rightLooksRicher) {
-      satisfyExpr(expr.left, true, inputs, typeMap);
-      satisfyExpr(expr.right, false, inputs, typeMap);
+      satisfyExpr(expr.left, true, inputs, typeMap, stateDescriptions, declaredTypes);
+      satisfyExpr(expr.right, false, inputs, typeMap, stateDescriptions, declaredTypes);
       return;
     }
 
-    satisfyExpr(expr.left, false, inputs, typeMap);
+    satisfyExpr(expr.left, false, inputs, typeMap, stateDescriptions, declaredTypes);
     return;
   }
 
@@ -1449,14 +1512,14 @@ function satisfyExpr(
 
     if (left?.type === `IRVar` && right?.type === `IRConst`) {
       markType(typeMap, left.name, inferConstType(right.value));
-      assignVar(inputs, left.name, expected ? alternativeValue(right.value) : right.value, true);
+      assignVar(inputs, left.name, expected ? alternativeValueForVariable(left.name, right.value, declaredTypes) : right.value, true);
       assignDescription(stateDescriptions, left.name, describeConstraintValue(right.value, expected));
       return;
     }
 
     if (left?.type === `IRConst` && right?.type === `IRVar`) {
       markType(typeMap, right.name, inferConstType(left.value));
-      assignVar(inputs, right.name, expected ? alternativeValue(left.value) : left.value, true);
+      assignVar(inputs, right.name, expected ? alternativeValueForVariable(right.name, left.value, declaredTypes) : left.value, true);
       assignDescription(stateDescriptions, right.name, describeConstraintValue(left.value, expected));
       return;
     }
@@ -1543,7 +1606,7 @@ function satisfyExpr(
 
     if (left?.type === `IRVar` && right?.type === `IRConst`) {
       markType(typeMap, left.name, inferConstType(right.value));
-      assignVar(inputs, left.name, expected ? right.value : alternativeValue(right.value), true);
+      assignVar(inputs, left.name, expected ? right.value : alternativeValueForVariable(left.name, right.value, declaredTypes), true);
       assignDescription(stateDescriptions, left.name, describeConstraintValue(right.value, !expected));
       return;
     }
@@ -1557,7 +1620,7 @@ function satisfyExpr(
       }
 
       markType(typeMap, right.name, inferConstType(left.value));
-      assignVar(inputs, right.name, expected ? left.value : alternativeValue(left.value), true);
+      assignVar(inputs, right.name, expected ? left.value : alternativeValueForVariable(right.name, left.value, declaredTypes), true);
       assignDescription(stateDescriptions, right.name, describeConstraintValue(left.value, !expected));
       return;
     }
@@ -1650,6 +1713,9 @@ function buildCase(
   const typeMap: Record<string, InferredType> = {};
   const importedNames = new Set<string>(imports.flatMap((item) => item.names));
   const parameterNames = new Set(params.map((param) => param.name));
+  const declaredTypes: Record<string, string | undefined> = Object.fromEntries(
+    params.map((param) => [param.name, param.type]),
+  );
 
   for (const param of params) {
     markType(typeMap, param.name, inferTypeFromDeclaredType(param.type));
@@ -1665,7 +1731,7 @@ function buildCase(
   collectExprTypes(path.outcome.expr, typeMap);
 
   const inputStates = path.constraints.reduce<ConstraintState[]>(
-    (states, constraint) => states.flatMap((state) => expandConstraintVariants(constraint.expr, constraint.value, state, typeMap)),
+    (states, constraint) => states.flatMap((state) => expandConstraintVariants(constraint.expr, constraint.value, state, typeMap, declaredTypes)),
     [{ inputs: {}, stateDescriptions: {} }],
   );
 
